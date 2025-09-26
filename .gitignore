@@ -1,0 +1,35 @@
+# Sensible Konfigurationsdateien
+config.js
+
+# Log-Dateien
+*.log
+bot.log
+
+# Datenbank-Dateien
+*.db
+highlights.db
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Betriebssystem
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporäre Dateien
+*.tmp
+*.temp
+
+# Export-Dateien
+highlights_*.md
+highlights_*.html
+backup_*.json
