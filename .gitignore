@@ -1,0 +1,17 @@
+# Local configuration file with the secret keys
+.env
+
+# Folder with all installed packages (is regenerated with 'npm install')
+/node_modules
+
+# The database file
+*.db
+
+# Log files and debug output
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# macOS specific
+.DS_Store
