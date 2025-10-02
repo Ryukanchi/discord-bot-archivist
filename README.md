@@ -251,7 +251,7 @@ MIT License - see LICENSE file for details.
 
 ## 📞 Support
 
-For suggestions, bug reports, or questions, you can create an issue in the repository or contact me via email:
+For suggestions, bug reports, or questions, you can create an issue in the repository or contact me via email: Ryukanchi@gmail.com
 - Create an issue in the repository
 - Check the troubleshooting section
 - Consult the Discord.js documentation
