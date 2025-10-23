@@ -27,7 +27,7 @@ const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('
 for (const file of commandFiles) {
     const filePath = path.join(commandsPath, file);
     const command = require(filePath);
-    
+
     if ('data' in command && 'execute' in command) {
         client.commands.set(command.data.name, command);
         console.log(`✅ Loaded command: ${command.data.name}`);
@@ -42,7 +42,7 @@ client.once(Events.ClientReady, async readyClient => {
     console.log(`📊 Bot is active in ${client.guilds.cache.size} servers`);
     console.log(`✅ Archivist initialized`);
     console.log(`✅ All event listeners registered`);
-    
+
     // Set bot status and activity from environment variables
     try {
         readyClient.user.setActivity(process.env.BOT_ACTIVITY_NAME, { type: process.env.BOT_ACTIVITY_TYPE });
@@ -51,28 +51,37 @@ client.once(Events.ClientReady, async readyClient => {
     } catch (error) {
         console.error('❌ Error setting bot status/activity:', error);
     }
-    
+
     // Register slash commands
     try {
         console.log('🔄 Registering slash commands...');
         const { REST, Routes } = require('discord.js');
-        
+
         const commands = [];
         for (const [name, command] of client.commands) {
             commands.push(command.data.toJSON());
         }
-        
+
         const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
-        
+        const DEV_GUILD_ID = process.env.DEV_GUILD_ID;
+
         console.log(`🔄 Started refreshing ${commands.length} application (/) commands.`);
-        
-        // Register commands globally
-        const data = await rest.put(
-            Routes.applicationCommands(client.user.id),
-            { body: commands },
-        );
-        
-        console.log(`✅ Successfully reloaded ${data.length} application (/) commands.`);
+
+        if (DEV_GUILD_ID) {
+            const data = await rest.put(
+                Routes.applicationGuildCommands(client.user.id, DEV_GUILD_ID),
+                { body: commands }
+            );
+            console.log(`✅ Registered guild commands for ${DEV_GUILD_ID}`);
+            console.log(`✅ Successfully reloaded ${data.length} application (/) commands.`);
+        } else {
+            const data = await rest.put(
+                Routes.applicationCommands(client.user.id),
+                { body: commands }
+            );
+            console.log(`✅ Registered global commands.`);
+            console.log(`✅ Successfully reloaded ${data.length} application (/) commands.`);
+        }
     } catch (error) {
         console.error('❌ Error registering slash commands:', error);
     }
@@ -93,7 +102,7 @@ client.on(Events.InteractionCreate, async interaction => {
         await command.execute(interaction);
     } catch (error) {
         console.error(`❌ Error executing ${interaction.commandName}:`, error);
-        
+
         const errorMessage = {
             content: '❌ There was an error while executing this command!',
             ephemeral: true
@@ -115,7 +124,7 @@ client.on(Events.MessageCreate, async message => {
     try {
         // Automatically analyze messages for highlights
         const analysis = await archivist.analyzeMessage(message);
-        
+
         // If it's a highlight, add points to user
         if (analysis.isHighlight) {
             archivist.addUserPoints(message.author.id, 10);
@@ -159,3 +168,4 @@ client.login(process.env.DISCORD_TOKEN).catch(error => {
     console.error('❌ Error during bot startup:', error);
     process.exit(1);
 });
+client.on

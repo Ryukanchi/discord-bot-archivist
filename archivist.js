@@ -9,22 +9,22 @@ class ServerArchivist {
         try {
             console.log('🔄 Initializing database...');
             // Initialize database
-            this.db = new Database('./highlights.db');
+            this.db = new Database(process.env.DATABASE_PATH || './highlights.db');
             this.initDatabase();
             console.log('✅ Database initialized');
-            
+
             // Initialize privacy system
             this.privacySalt = process.env.PRIVACY_SALT || crypto.randomBytes(32).toString('hex');
             console.log('✅ Privacy system initialized');
-            
+
             console.log('🔄 Initializing NLP tools...');
             // Initialize NLP tools
             this.sentiment = new sentiment();
             this.tokenizer = new natural.WordTokenizer();
             this.stemmer = natural.PorterStemmer;
             console.log('✅ NLP tools initialized');
-            
-            
+
+
             // Highlight criteria - load from environment variables
             this.highlightThresholds = {
                 sentiment: parseFloat(process.env.SENTIMENT_THRESHOLD) || 0.3,
@@ -83,12 +83,12 @@ class ServerArchivist {
             CREATE INDEX IF NOT EXISTS idx_highlights_anonymized_created_at 
             ON highlights_anonymized(created_at)
         `);
-        
+
         this.db.exec(`
             CREATE INDEX IF NOT EXISTS idx_highlights_anonymized_is_highlight 
             ON highlights_anonymized(is_highlight)
         `);
-        
+
         this.db.exec(`
             CREATE INDEX IF NOT EXISTS idx_user_points_points 
             ON user_points(points DESC)
@@ -165,7 +165,7 @@ class ServerArchivist {
     // Delete user data
     async deleteUserData(userId) {
         const hashedId = this.hashUserId(userId);
-        
+
         // Delete all user data
         this.db.prepare('DELETE FROM highlights_anonymized WHERE hashed_author_id = ?').run(hashedId);
         this.db.prepare('DELETE FROM user_points WHERE user_id = ?').run(hashedId);
@@ -177,7 +177,7 @@ class ServerArchivist {
         // Automatically delete after 30 days
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        
+
         const stmt = this.db.prepare(`
             DELETE FROM highlights_anonymized 
             WHERE created_at < ?
@@ -190,24 +190,24 @@ class ServerArchivist {
         const content = message.content;
         const author = message.author;
         const channel = message.channel;
-        
+
         // Privacy-Check: Nur analysieren wenn User zugestimmt hat
         const userConsent = await this.checkUserConsent(author.id);
         if (userConsent === false) {
             return { highlightScore: 0, isHighlight: false, sentimentScore: 0, reactionCount: 0, keywords: [] };
         }
-        
+
         // Sentiment-Analyse
         const sentimentResult = this.sentiment.analyze(content);
         const sentimentScore = sentimentResult.score;
-        
+
         // Keyword-Erkennung
         const keywords = this.detectKeywords(content);
-        
+
         // Engagement-Metriken
         const reactionCount = message.reactions.cache.size;
         const replyCount = 0; // Will be implemented later
-        
+
         // Highlight-Score berechnen
         const highlightScore = this.calculateHighlightScore({
             sentiment: sentimentScore,
@@ -227,7 +227,7 @@ class ServerArchivist {
         const isHighlight = highlightScore >= this.highlightThresholds.minScore;
         const hashedUserId = this.hashUserId(author.id);
         const anonymizedContent = this.anonymizeContent(content);
-        
+
         stmt.run(
             hashedUserId,
             channel.type,
@@ -250,7 +250,7 @@ class ServerArchivist {
     detectKeywords(content) {
         const foundKeywords = [];
         const lowerContent = content.toLowerCase();
-        
+
         this.highlightThresholds.keywords.forEach(keyword => {
             if (lowerContent.includes(keyword)) {
                 foundKeywords.push(keyword);
@@ -263,27 +263,27 @@ class ServerArchivist {
     // Highlight-Score berechnen
     calculateHighlightScore(metrics) {
         let score = 0;
-        
+
         // Sentiment (0-1)
         const sentimentScore = Math.max(0, metrics.sentiment / 5); // Normalize to 0-1
         score += sentimentScore * 0.3;
-        
+
         // Reactions (0-1)
         const reactionScore = Math.min(1, metrics.reactions / 10);
         score += reactionScore * 0.3;
-        
+
         // Keywords (0-1)
         const keywordScore = Math.min(1, metrics.keywords / 3);
         score += keywordScore * 0.2;
-        
+
         // Content Length (0-1) - nicht zu kurz, nicht zu lang
         const lengthScore = Math.min(1, Math.max(0, (metrics.contentLength - 10) / 100));
         score += lengthScore * 0.1;
-        
+
         // Replies (0-1)
         const replyScore = Math.min(1, metrics.replies / 5);
         score += replyScore * 0.1;
-        
+
         return Math.min(1, score);
     }
 
@@ -291,16 +291,16 @@ class ServerArchivist {
     generateWeeklyReport() {
         const weekAgo = new Date();
         weekAgo.setDate(weekAgo.getDate() - 7);
-        
+
         const stmt = this.db.prepare(`
             SELECT * FROM highlights_anonymized 
             WHERE created_at >= ? AND is_highlight = TRUE
             ORDER BY sentiment_score DESC, reaction_count DESC
             LIMIT 10
         `);
-        
+
         const highlights = stmt.all(weekAgo.toISOString());
-        
+
         return {
             period: 'weekly',
             startDate: weekAgo,
@@ -314,16 +314,16 @@ class ServerArchivist {
     generateMonthlyReport() {
         const monthAgo = new Date();
         monthAgo.setMonth(monthAgo.getMonth() - 1);
-        
+
         const stmt = this.db.prepare(`
             SELECT * FROM highlights_anonymized 
             WHERE created_at >= ? AND is_highlight = TRUE
             ORDER BY sentiment_score DESC, reaction_count DESC
             LIMIT 20
         `);
-        
+
         const highlights = stmt.all(monthAgo.toISOString());
-        
+
         return {
             period: 'monthly',
             startDate: monthAgo,
@@ -338,7 +338,7 @@ class ServerArchivist {
         let markdown = `# ${report.period === 'weekly' ? 'Weekly' : 'Monthly'} Highlights\n\n`;
         markdown += `**Period:** ${report.startDate.toLocaleDateString()} - ${report.endDate.toLocaleDateString()}\n`;
         markdown += `**Total Highlights:** ${report.totalHighlights}\n\n`;
-        
+
         report.highlights.forEach((highlight, index) => {
             markdown += `## Highlight #${index + 1}\n`;
             markdown += `**Channel Type:** ${highlight.channel_type}\n`;
@@ -346,7 +346,7 @@ class ServerArchivist {
             markdown += `**Reactions:** ${highlight.reaction_count}\n`;
             markdown += `**Content:** ${highlight.anonymized_content}\n\n`;
         });
-        
+
         return markdown;
     }
 

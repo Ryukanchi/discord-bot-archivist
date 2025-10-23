@@ -1,0 +1,27 @@
+{
+  // ✨ Copilot hört auf dich – Vibe-Coding aktiv!
+  "editor.inlineSuggest.enabled": true,
+  "editor.quickSuggestions": {
+    "other": true,
+    "comments": true,
+    "strings": true
+  },
+  "editor.acceptSuggestionOnEnter": "on",
+  "github.copilot.enable": {
+    "*": true,
+    "plaintext": true,
+    "markdown": true,
+    "scminput": true
+  },
+  "editor.tabCompletion": "on",
+
+  // 💾 Komfort & Sauberkeit
+  "editor.formatOnSave": true,
+  "editor.formatOnPaste": true,
+  "files.eol": "\n",
+
+  // 🧠 Lesbarkeit & flüssiges Schreiben
+  "editor.cursorSmoothCaretAnimation": true,
+  "editor.smoothScrolling": true,
+  "editor.minimap.enabled": false
+}
