@@ -250,3 +250,124 @@ For suggestions, bug reports, or questions, you can create an issue in the repos
 ---
 
 **🎉 Enjoy your modernized Discord Bot Archivist!**
+# 🤖 Discord Bot Archivist
+
+Welcome to the Discord Bot Archivist, a cheery little keeper of highlights that watches your server, celebrates great moments, and keeps the paperwork tidy so you don’t have to. Powered by slash commands, privacy-first data handling, and a hint of sarcasm, it’s ready to archive the best banter your community can throw at it.
+
+## 🚀 Features
+
+- ✅ Automatic highlight detection with NLP sentiment scoring and keyword spice
+- 🧠 GDPR-friendly anonymization plus opt-in consent tracking for every user
+- 🗂️ Slash command suite for reports, backups, leaderboards, and on-demand analysis
+- 🩺 Built-in diagnostics to sanity-check your deployment without leaving Discord
+- ♻️ Daily data retention cleanup, configurable via environment variables
+- ⚡ Dynamic command loading so new interactions appear without extra wiring
+
+## ⚙️ Setup
+
+```bash
+git clone <your-repo-url>
+cd discord-bot-archivist
+npm install
+```
+
+1. Copy `env.example` to `.env`.
+2. Fill in these keys (placeholders only, keep secrets secret):
+   - `DISCORD_TOKEN` (required)
+   - `PRIVACY_SALT` (required, random 32-byte hex recommended)
+   - `DATABASE_PATH` (defaults to `./highlights.db`)
+   - `DATA_RETENTION_DAYS` (defaults to `30`)
+   - `AUTO_DELETE_ENABLED` (defaults to `true`)
+   - Optional helpers: `BOT_STATUS`, `BOT_ACTIVITY_NAME`, `BOT_ACTIVITY_TYPE`, `DEV_GUILD_ID`, `SENTIMENT_THRESHOLD`, `REACTION_THRESHOLD`, `REPLY_THRESHOLD`, `MIN_SCORE`, `KEYWORDS`
+3. `.env` and `*.db` are already git-ignored, so your secrets stay local by default.
+
+## ▶️ Run
+
+```bash
+npm run dev
+# or
+npm start
+```
+
+Expect logs such as:
+
+```
+🔄 Initializing Archivist...
+✅ Database initialized
+🔄 Registering slash commands...
+✅ Bot is online! Logged in as YourBot#1234
+```
+
+## 🩺 Diagnostics
+
+- Use `/archivist diagnose` (admin-only) for a one-shot health report.
+- Results arrive as an ephemeral embed covering:
+  - Environment variables (✅/❌ for `DISCORD_TOKEN`, `DATABASE_PATH`, `DATA_RETENTION_DAYS`, `AUTO_DELETE_ENABLED`)
+  - Database file accessibility and key table presence (`highlights_anonymized`, `user_points`, `user_privacy`)
+  - Discord client readiness and loaded command counts
+- Logs show success (`✅ Diagnostics completed`) or failure details if something misbehaves.
+
+## 🧩 Commands
+
+| Command | Description |
+| ------- | ----------- |
+| `/ping` | Latency check with round-trip and websocket timings. |
+| `/hello` | Sends a friendly embed greeting. |
+| `/help` | Lists all available commands. |
+| `/info` | Shares bot stats (uptime, memory, versions, guild counts). |
+| `/random` | Generates a random number between 1 and 100. |
+| `/dice [sides]` | Rolls a dice with 2–100 sides. |
+| `/weekly` | Displays the latest highlight report. |
+| `/analyze <message>` | Scores a message’s highlight potential (consent bypass for manual testing). |
+| `/privacy consent value:on\|off` | Opt a user into or out of highlight tracking (ephemeral). |
+| `/privacy status` | Shows the caller’s current consent setting (ephemeral). |
+| `/archivist leaderboard` | Shows anonymized highlight rankings. |
+| `/archivist points [user]` | Displays highlight stats for a user. |
+| `/archivist backup` | DM’s an anonymized JSON backup to admins. |
+| `/archivist clear` | Wipes highlight data (admin-only). |
+| `/archivist diagnose` | Runs the diagnostics suite (admin-only). |
+| `/archivist help` | Lists all archivist subcommands. |
+
+## 📂 Project Structure
+
+```
+discord-bot-archivist/
+├── commands/
+│   ├── analyze.js
+│   ├── archivist.js
+│   ├── dice.js
+│   ├── hello.js
+│   ├── help.js
+│   ├── info.js
+│   ├── ping.js
+│   ├── privacy.js
+│   ├── random.js
+│   └── weekly.js
+├── archivist.js
+├── env.example
+├── index.js
+├── package-lock.json
+├── package.json
+└── README.md
+```
+
+## 🔒 Privacy
+
+- Opt-in consent: users must enable tracking via `/privacy consent value:on` before their messages count.
+- Anonymization: author IDs are hashed with `PRIVACY_SALT`, mentions and sensitive patterns morph into neutral placeholders.
+- Retention: a daily cleanup job (respecting `DATA_RETENTION_DAYS` and `AUTO_DELETE_ENABLED`) prunes old highlights.
+- Control: `/archivist clear` purges all stored data; `/privacy consent value:off` stops and removes a user’s records.
+
+## 🛠️ Development
+
+- `npm run dev` – start the bot in development mode.
+- `npm start` – production entrypoint.
+- `npx eslint .` – manual linting if you enjoy clean logs.
+
+## 🙋 Contact
+
+Questions, memes, or bug reports? Email **Ryukanchi@gmail.com**.
+
+## 📜 License
+
+This project is released under the **MIT License**. Fork, remix, and archive responsibly.
