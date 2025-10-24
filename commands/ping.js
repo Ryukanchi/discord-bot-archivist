@@ -10,7 +10,8 @@ module.exports = {
       content: "🏓 Pong!",
       fetchReply: true,
     });
-    const roundtripLatency = sent.createdTimestamp - interaction.createdTimestamp;
+    const roundtripLatency =
+      sent.createdTimestamp - interaction.createdTimestamp;
     const websocketLatency = interaction.client.ws.ping;
 
     const embed = new EmbedBuilder()
@@ -26,7 +27,7 @@ module.exports = {
           value: `${websocketLatency}ms`,
           inline: true,
         },
-        { name: "Status", value: "✅ Bot is online!", inline: true }
+        { name: "Status", value: "✅ Bot is online!", inline: true },
       )
       .setColor(0x00ff00)
       .setTimestamp();

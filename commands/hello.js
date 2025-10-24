@@ -8,9 +8,7 @@ module.exports = {
   async execute(interaction) {
     const embed = new EmbedBuilder()
       .setTitle("👋 Hello!")
-      .setDescription(
-        `Hello ${interaction.user.username}! Nice to meet you!`
-      )
+      .setDescription(`Hello ${interaction.user.username}! Nice to meet you!`)
       .setColor(0x0099ff)
       .setTimestamp();
 

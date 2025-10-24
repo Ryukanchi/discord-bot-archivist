@@ -42,7 +42,7 @@ class ServerArchivist {
         : Math.max(retentionDays, 1);
       const autoDeleteFlag = String(process.env.AUTO_DELETE_ENABLED || "true");
       this.autoDeleteEnabled = !["false", "0", "no"].includes(
-        autoDeleteFlag.toLowerCase()
+        autoDeleteFlag.toLowerCase(),
       );
       this.cleanupInterval = null;
 
@@ -50,7 +50,7 @@ class ServerArchivist {
         this.startDataRetentionJob();
       } else {
         console.log(
-          "⚠️  Automatic data cleanup disabled via AUTO_DELETE_ENABLED"
+          "⚠️  Automatic data cleanup disabled via AUTO_DELETE_ENABLED",
         );
       }
     } catch (error) {
@@ -116,16 +116,15 @@ class ServerArchivist {
   addUserPoints(userId, points, options = {}) {
     const { incrementHighlights = false } = options;
     const hashedUserId = this.hashUserId(userId);
-    const existing =
-      this.db
-        .prepare(
-          "SELECT points, highlights_created, votes_cast FROM user_points WHERE user_id = ?"
-        )
-        .get(hashedUserId) || {
-        points: 0,
-        highlights_created: 0,
-        votes_cast: 0,
-      };
+    const existing = this.db
+      .prepare(
+        "SELECT points, highlights_created, votes_cast FROM user_points WHERE user_id = ?",
+      )
+      .get(hashedUserId) || {
+      points: 0,
+      highlights_created: 0,
+      votes_cast: 0,
+    };
 
     const updatedPoints = existing.points + points;
     const updatedHighlights = incrementHighlights
@@ -140,7 +139,7 @@ class ServerArchivist {
       hashedUserId,
       updatedPoints,
       updatedHighlights,
-      existing.votes_cast
+      existing.votes_cast,
     );
   }
 
@@ -189,7 +188,7 @@ class ServerArchivist {
       .replace(/\b\d{2}:\d{2}\b/g, "[TIME]") // Times
       .replace(
         /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g,
-        "[EMAIL]"
+        "[EMAIL]",
       ) // Emails
       .substring(0, 200); // Limit length
   }
@@ -197,7 +196,7 @@ class ServerArchivist {
   // Check user consent
   async checkUserConsent(userId) {
     const stmt = this.db.prepare(
-      "SELECT consent FROM user_privacy WHERE user_id = ?"
+      "SELECT consent FROM user_privacy WHERE user_id = ?",
     );
     const result = stmt.get(this.hashUserId(userId));
     return result ? result.consent : null; // null = not asked
@@ -320,7 +319,7 @@ class ServerArchivist {
       anonymizedContent,
       sentimentScore,
       reactionCount,
-      isHighlight ? 1 : 0
+      isHighlight ? 1 : 0,
     );
 
     return {
@@ -365,7 +364,7 @@ class ServerArchivist {
     // Content Length (0-1) - nicht zu kurz, nicht zu lang
     const lengthScore = Math.min(
       1,
-      Math.max(0, (metrics.contentLength - 10) / 100)
+      Math.max(0, (metrics.contentLength - 10) / 100),
     );
     score += lengthScore * 0.1;
 
@@ -434,7 +433,7 @@ class ServerArchivist {
       markdown += `## Highlight #${index + 1}\n`;
       markdown += `**Channel Type:** ${highlight.channel_type}\n`;
       markdown += `**Sentiment Score:** ${highlight.sentiment_score.toFixed(
-        2
+        2,
       )}\n`;
       markdown += `**Reactions:** ${highlight.reaction_count}\n`;
       markdown += `**Content:** ${highlight.anonymized_content}\n\n`;

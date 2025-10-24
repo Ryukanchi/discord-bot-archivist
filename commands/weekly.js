@@ -13,7 +13,7 @@ module.exports = {
       const embed = new EmbedBuilder()
         .setTitle("📅 Weekly Highlights")
         .setDescription(
-          `**Period:** ${report.startDate.toLocaleDateString()} - ${report.endDate.toLocaleDateString()}`
+          `**Period:** ${report.startDate.toLocaleDateString()} - ${report.endDate.toLocaleDateString()}`,
         )
         .addFields(
           {
@@ -26,7 +26,7 @@ module.exports = {
             value:
               report.highlights[0]?.anonymized_content || "No highlights yet",
             inline: false,
-          }
+          },
         )
         .setColor(0x0099ff)
         .setTimestamp();

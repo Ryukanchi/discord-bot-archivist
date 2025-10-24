@@ -15,14 +15,14 @@ module.exports = {
             .setRequired(true)
             .addChoices(
               { name: "on", value: "on" },
-              { name: "off", value: "off" }
-            )
-        )
+              { name: "off", value: "off" },
+            ),
+        ),
     )
     .addSubcommand((subcommand) =>
       subcommand
         .setName("status")
-        .setDescription("Show your current consent status")
+        .setDescription("Show your current consent status"),
     ),
   async execute(interaction) {
     const archivist = interaction.client.archivist;
@@ -36,7 +36,7 @@ module.exports = {
         .setDescription(
           allow
             ? "✅ Consent **ON** — your messages may be analyzed."
-            : "❌ Consent **OFF** — your messages will **not** be analyzed."
+            : "❌ Consent **OFF** — your messages will **not** be analyzed.",
         )
         .setColor(allow ? 0x22c55e : 0xef4444);
       return interaction.reply({ embeds: [embed], ephemeral: true });

@@ -19,7 +19,7 @@ module.exports = {
         { name: "/analyze", value: "Analyze a message", inline: true },
         { name: "/weekly", value: "Weekly highlights report", inline: true },
         { name: "/privacy", value: "Manage highlight consent", inline: true },
-        { name: "/archivist", value: "Advanced archivist tools", inline: true }
+        { name: "/archivist", value: "Advanced archivist tools", inline: true },
       )
       .setColor(0x00ff00)
       .setTimestamp();

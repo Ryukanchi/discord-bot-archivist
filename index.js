@@ -42,7 +42,7 @@ for (const file of commandFiles) {
     console.log(`✅ Loaded command: ${command.data.name}`);
   } else {
     console.log(
-      `⚠️  Command at ${filePath} is missing required "data" or "execute" property.`
+      `⚠️  Command at ${filePath} is missing required "data" or "execute" property.`,
     );
   }
 }
@@ -50,9 +50,7 @@ for (const file of commandFiles) {
 // Bot is ready
 client.once(Events.ClientReady, async (readyClient) => {
   console.log(`✅ Bot is online! Logged in as ${readyClient.user.tag}`);
-  console.log(
-    `✅ Active in ${client.guilds.cache.size} servers`
-  );
+  console.log(`✅ Active in ${client.guilds.cache.size} servers`);
   console.log("✅ Archivist initialized");
   console.log("✅ All event listeners registered");
 
@@ -66,9 +64,7 @@ client.once(Events.ClientReady, async (readyClient) => {
     if (process.env.BOT_STATUS) {
       readyClient.user.setStatus(process.env.BOT_STATUS);
     }
-    console.log(
-      "✅ Bot status configured from environment values"
-    );
+    console.log("✅ Bot status configured from environment values");
   } catch (error) {
     console.error("❌ Error setting bot status/activity:", error);
   }
@@ -84,26 +80,25 @@ client.once(Events.ClientReady, async (readyClient) => {
     }
 
     const rest = new REST({ version: "10" }).setToken(
-      process.env.DISCORD_TOKEN
+      process.env.DISCORD_TOKEN,
     );
     const devGuildId = process.env.DEV_GUILD_ID;
 
     console.log(
-      `🔄 Started refreshing ${commands.length} application (/) commands.`
+      `🔄 Started refreshing ${commands.length} application (/) commands.`,
     );
 
     if (devGuildId) {
       const data = await rest.put(
         Routes.applicationGuildCommands(client.user.id, devGuildId),
-        { body: commands }
+        { body: commands },
       );
       console.log(`✅ Registered guild commands for ${devGuildId}`);
       console.log(`✅ Reloaded ${data.length} application (/) commands.`);
     } else {
-      const data = await rest.put(
-        Routes.applicationCommands(client.user.id),
-        { body: commands }
-      );
+      const data = await rest.put(Routes.applicationCommands(client.user.id), {
+        body: commands,
+      });
       console.log("✅ Registered global commands.");
       console.log(`✅ Reloaded ${data.length} application (/) commands.`);
     }
@@ -120,7 +115,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
   if (!command) {
     console.error(
-      `❌ No command matching ${interaction.commandName} was found.`
+      `❌ No command matching ${interaction.commandName} was found.`,
     );
     return;
   }
@@ -168,8 +163,8 @@ client.on(Events.MessageCreate, async (message) => {
       console.log(
         `✅ Highlight recorded for ${message.author.username}: ${message.content.substring(
           0,
-          50
-        )}...`
+          50,
+        )}...`,
       );
     }
   } catch (error) {
@@ -202,9 +197,7 @@ console.log("🔄 Connecting to Discord...");
 
 if (!process.env.DISCORD_TOKEN) {
   console.error("❌ DISCORD_TOKEN not found in environment variables!");
-  console.error(
-    "❌ Please create a .env file with your Discord bot token."
-  );
+  console.error("❌ Please create a .env file with your Discord bot token.");
   process.exit(1);
 }
 

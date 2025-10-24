@@ -40,7 +40,7 @@ module.exports = {
           name: "Memory Usage",
           value: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
           inline: true,
-        }
+        },
       )
       .setColor(0x0099ff)
       .setTimestamp();

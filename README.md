@@ -13,17 +13,20 @@ A Discord bot that automatically detects and archives highlights in server messa
 ## 🚀 Installation
 
 ### 1. Clone Repository
+
 ```bash
 git clone <repository-url>
 cd discord-bot-archivist-main
 ```
 
 ### 2. Install Dependencies
+
 ```bash
 npm install
 ```
 
 ### 3. Configure Environment Variables
+
 Copy `env.example` to `.env` and fill in the values:
 
 ```bash
@@ -31,6 +34,7 @@ cp env.example .env
 ```
 
 **Important Configuration:**
+
 ```env
 # Discord Bot Token (required)
 DISCORD_TOKEN=your_bot_token_here
@@ -50,6 +54,7 @@ KEYWORDS=lol,haha,omg,wtf,epic,amazing,wow,xd,lmao,rofl,pog,based,cringe,sus
 ```
 
 ### 4. Start Bot
+
 ```bash
 npm start
 ```
@@ -57,6 +62,7 @@ npm start
 ## 🎮 Available Slash Commands
 
 ### Basic Commands
+
 - `/ping` - Tests bot connection and shows latency
 - `/hello` - Greets the user
 - `/help` - Shows all available commands
@@ -65,12 +71,14 @@ npm start
 - `/dice [sides]` - Rolls dice with a specific number of sides
 
 ### Highlight Tools
+
 - `/analyze <message>` - Analyze a message for highlight potential
 - `/weekly` - Show the weekly highlights report
 - `/privacy consent value:on|off` - Opt in or out of highlight tracking
 - `/privacy status` - Display your current privacy status
 
 ### Archivist Commands
+
 - `/archivist leaderboard` - Show the highlight leaderboard
 - `/archivist points [user]` - Show user highlight points
 - `/archivist backup` - Create a backup of highlights
@@ -80,6 +88,7 @@ npm start
 ## 🔒 Privacy & Compliance
 
 ### GDPR-Compliant Features
+
 - **Anonymized Data Storage**: User IDs are hashed
 - **Opt-in/Opt-out System**: Users can consent/withdraw at any time
 - **Automatic Deletion**: Data is automatically deleted after 30 days
@@ -87,6 +96,7 @@ npm start
 - **Transparency**: Users can view and delete their data at any time
 
 ### What is stored?
+
 - ✅ Anonymized message content
 - ✅ Sentiment scores
 - ✅ Reaction count
@@ -96,6 +106,7 @@ npm start
 ## 🏗️ Architecture
 
 ### Project Structure
+
 ```
 discord-bot-archivist-main/
 ├── commands/           # Slash Command definitions
@@ -117,6 +128,7 @@ discord-bot-archivist-main/
 ```
 
 ### Database Schema
+
 - `highlights_anonymized` - Anonymized highlights
 - `user_points` - Gamification points
 - `user_privacy` - Privacy settings
@@ -125,6 +137,7 @@ discord-bot-archivist-main/
 ## ⚙️ Configuration
 
 ### Environment Variables
+
 All configuration is done via the `.env` file:
 
 ```env
@@ -151,16 +164,19 @@ AUTO_DELETE_ENABLED=true
 ## 🚀 Deployment
 
 ### Local Development
+
 ```bash
 npm start
 ```
 
 ### Production Deployment
+
 1. Create a `.env` file with your production values
 2. Ensure all dependencies are installed
 3. Start the bot with `npm start`
 
 ### Docker (Optional)
+
 ```dockerfile
 FROM node:18-alpine
 WORKDIR /app
@@ -173,22 +189,24 @@ CMD ["npm", "start"]
 ## 🛠️ Development
 
 ### Adding New Commands
+
 1. Create a new file in `commands/`
 2. Implement `data` (SlashCommandBuilder) and `execute` (function)
 3. The bot automatically loads commands on startup
 
 ### Example Command
+
 ```javascript
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder } = require("discord.js");
 
 module.exports = {
-    data: new SlashCommandBuilder()
-        .setName('example')
-        .setDescription('Example command'),
-    
-    async execute(interaction) {
-        await interaction.reply('Hello!');
-    },
+  data: new SlashCommandBuilder()
+    .setName("example")
+    .setDescription("Example command"),
+
+  async execute(interaction) {
+    await interaction.reply("Hello!");
+  },
 };
 ```
 
@@ -204,20 +222,24 @@ module.exports = {
 ### Common Issues
 
 **Bot won't start:**
+
 - Check the `DISCORD_TOKEN` in the `.env` file
 - Ensure all dependencies are installed
 
 **Slash Commands don't appear:**
+
 - Wait up to 1 hour for global command registration
 - Check bot permissions
 
 **Database errors:**
+
 - Check the `DATABASE_PATH` in the `.env` file
 - Ensure the bot has write permissions
 
 ## 📝 Changelog
 
 ### Version 2.0.0 (Modernization 2024)
+
 - ✅ Migration to Slash Commands
 - ✅ Enhanced privacy compliance
 - ✅ Performance optimizations
@@ -225,6 +247,7 @@ module.exports = {
 - ✅ Centralized configuration
 
 ### Version 1.0.0 (Original)
+
 - Basic highlight detection
 - Prefix commands
 - Basic privacy
@@ -243,6 +266,7 @@ MIT License - see LICENSE file for details.
 ## 📞 Support
 
 For suggestions, bug reports, or questions, you can create an issue in the repository or contact me via email: Ryukanchi@gmail.com
+
 - Create an issue in the repository
 - Check the troubleshooting section
 - Consult the Discord.js documentation
@@ -250,6 +274,7 @@ For suggestions, bug reports, or questions, you can create an issue in the repos
 ---
 
 **🎉 Enjoy your modernized Discord Bot Archivist!**
+
 # 🤖 Discord Bot Archivist
 
 Welcome to the Discord Bot Archivist, a cheery little keeper of highlights that watches your server, celebrates great moments, and keeps the paperwork tidy so you don’t have to. Powered by slash commands, privacy-first data handling, and a hint of sarcasm, it’s ready to archive the best banter your community can throw at it.
@@ -309,24 +334,24 @@ Expect logs such as:
 
 ## 🧩 Commands
 
-| Command | Description |
-| ------- | ----------- |
-| `/ping` | Latency check with round-trip and websocket timings. |
-| `/hello` | Sends a friendly embed greeting. |
-| `/help` | Lists all available commands. |
-| `/info` | Shares bot stats (uptime, memory, versions, guild counts). |
-| `/random` | Generates a random number between 1 and 100. |
-| `/dice [sides]` | Rolls a dice with 2–100 sides. |
-| `/weekly` | Displays the latest highlight report. |
-| `/analyze <message>` | Scores a message’s highlight potential (consent bypass for manual testing). |
-| `/privacy consent value:on\|off` | Opt a user into or out of highlight tracking (ephemeral). |
-| `/privacy status` | Shows the caller’s current consent setting (ephemeral). |
-| `/archivist leaderboard` | Shows anonymized highlight rankings. |
-| `/archivist points [user]` | Displays highlight stats for a user. |
-| `/archivist backup` | DM’s an anonymized JSON backup to admins. |
-| `/archivist clear` | Wipes highlight data (admin-only). |
-| `/archivist diagnose` | Runs the diagnostics suite (admin-only). |
-| `/archivist help` | Lists all archivist subcommands. |
+| Command                          | Description                                                                 |
+| -------------------------------- | --------------------------------------------------------------------------- |
+| `/ping`                          | Latency check with round-trip and websocket timings.                        |
+| `/hello`                         | Sends a friendly embed greeting.                                            |
+| `/help`                          | Lists all available commands.                                               |
+| `/info`                          | Shares bot stats (uptime, memory, versions, guild counts).                  |
+| `/random`                        | Generates a random number between 1 and 100.                                |
+| `/dice [sides]`                  | Rolls a dice with 2–100 sides.                                              |
+| `/weekly`                        | Displays the latest highlight report.                                       |
+| `/analyze <message>`             | Scores a message’s highlight potential (consent bypass for manual testing). |
+| `/privacy consent value:on\|off` | Opt a user into or out of highlight tracking (ephemeral).                   |
+| `/privacy status`                | Shows the caller’s current consent setting (ephemeral).                     |
+| `/archivist leaderboard`         | Shows anonymized highlight rankings.                                        |
+| `/archivist points [user]`       | Displays highlight stats for a user.                                        |
+| `/archivist backup`              | DM’s an anonymized JSON backup to admins.                                   |
+| `/archivist clear`               | Wipes highlight data (admin-only).                                          |
+| `/archivist diagnose`            | Runs the diagnostics suite (admin-only).                                    |
+| `/archivist help`                | Lists all archivist subcommands.                                            |
 
 ## 📂 Project Structure
 

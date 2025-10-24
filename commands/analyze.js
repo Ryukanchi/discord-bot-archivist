@@ -8,7 +8,7 @@ module.exports = {
       option
         .setName("message")
         .setDescription("The message to analyze")
-        .setRequired(true)
+        .setRequired(true),
     ),
 
   async execute(interaction) {
@@ -58,7 +58,7 @@ module.exports = {
             name: "Status",
             value: analysis.isHighlight ? "✅ Highlight!" : "❌ No Highlight",
             inline: true,
-          }
+          },
         )
         .setColor(analysis.isHighlight ? 0x00ff00 : 0xff0000)
         .setTimestamp();

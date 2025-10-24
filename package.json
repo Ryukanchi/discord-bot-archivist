@@ -5,7 +5,10 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "node index.js"
+    "dev": "node index.js",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "keywords": [
     "discord",
@@ -23,6 +26,7 @@
   },
   "devDependencies": {
     "eslint": "^8.57.1",
-    "eslint-config-prettier": "^10.1.8"
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.6.2"
   }
 }

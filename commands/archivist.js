@@ -15,7 +15,7 @@ module.exports = {
     .addSubcommand((subcommand) =>
       subcommand
         .setName("leaderboard")
-        .setDescription("Show highlight leaderboard")
+        .setDescription("Show highlight leaderboard"),
     )
     .addSubcommand((subcommand) =>
       subcommand
@@ -25,26 +25,26 @@ module.exports = {
           option
             .setName("user")
             .setDescription("User to check points for")
-            .setRequired(false)
-        )
+            .setRequired(false),
+        ),
     )
     .addSubcommand((subcommand) =>
       subcommand
         .setName("backup")
-        .setDescription("Create a backup of highlights data")
+        .setDescription("Create a backup of highlights data"),
     )
     .addSubcommand((subcommand) =>
       subcommand
         .setName("clear")
-        .setDescription("Clear all highlights data (Admin only)")
+        .setDescription("Clear all highlights data (Admin only)"),
     )
     .addSubcommand((subcommand) =>
       subcommand
         .setName("diagnose")
-        .setDescription("Run a system diagnostics check (Admin only)")
+        .setDescription("Run a system diagnostics check (Admin only)"),
     )
     .addSubcommand((subcommand) =>
-      subcommand.setName("help").setDescription("Show archivist help")
+      subcommand.setName("help").setDescription("Show archivist help"),
     ),
 
   async execute(interaction) {
@@ -65,7 +65,7 @@ module.exports = {
             leaderboardEmbed.addFields({
               name: `#${index + 1}`,
               value: `Anonymized ID: ...${user.user_id.slice(
-                -6
+                -6,
               )} — ${user.points} points`,
               inline: true,
             });
@@ -94,7 +94,7 @@ module.exports = {
                 name: "Votes Cast",
                 value: `${userPoints.votes_cast}`,
                 inline: true,
-              }
+              },
             )
             .setColor(0x0099ff)
             .setTimestamp();
@@ -106,7 +106,7 @@ module.exports = {
         case "backup": {
           if (
             !interaction.member.permissions.has(
-              PermissionFlagsBits.Administrator
+              PermissionFlagsBits.Administrator,
             )
           ) {
             return interaction.reply({
@@ -128,12 +128,12 @@ module.exports = {
 
           const filePath = path.join(
             os.tmpdir(),
-            `archivist_backup_${Date.now()}.json`
+            `archivist_backup_${Date.now()}.json`,
           );
           await fs.writeFile(
             filePath,
             JSON.stringify(payload, null, 2),
-            "utf8"
+            "utf8",
           );
 
           const file = new AttachmentBuilder(filePath);
@@ -151,18 +151,21 @@ module.exports = {
               files: [file],
             });
             await interaction.editReply(
-              "✅ Backup created. I sent it to your DMs."
+              "✅ Backup created. I sent it to your DMs.",
             );
           } catch (error) {
             console.error("❌ Failed to send backup via DM:", error);
             await interaction.editReply(
-              "❌ Backup created, but I could not DM you. Please enable DMs from server members."
+              "❌ Backup created, but I could not DM you. Please enable DMs from server members.",
             );
           } finally {
             try {
               await fs.unlink(filePath);
             } catch (error) {
-              console.error("❌ Failed to delete temporary backup file:", error);
+              console.error(
+                "❌ Failed to delete temporary backup file:",
+                error,
+              );
             }
           }
 
@@ -172,7 +175,7 @@ module.exports = {
         case "clear": {
           if (
             !interaction.member.permissions.has(
-              PermissionFlagsBits.Administrator
+              PermissionFlagsBits.Administrator,
             )
           ) {
             await interaction.reply({
@@ -199,7 +202,7 @@ module.exports = {
         case "diagnose": {
           if (
             !interaction.member.permissions.has(
-              PermissionFlagsBits.Administrator
+              PermissionFlagsBits.Administrator,
             )
           ) {
             await interaction.reply({
@@ -233,44 +236,45 @@ module.exports = {
                 "AUTO_DELETE_ENABLED",
               ];
               const missing = requiredEnv.filter(
-                (key) => !process.env[key] || process.env[key].length === 0
+                (key) => !process.env[key] || process.env[key].length === 0,
               );
               if (missing.length === 0) {
                 mark(
                   "Environment Variables",
                   true,
-                  "All required environment variables are set."
+                  "All required environment variables are set.",
                 );
               } else {
                 mark(
                   "Environment Variables",
                   false,
-                  `Missing: ${missing.join(", ")}`
+                  `Missing: ${missing.join(", ")}`,
                 );
               }
             } catch (error) {
               mark(
                 "Environment Variables",
                 false,
-                `Failed to verify environment variables: ${error.message}`
+                `Failed to verify environment variables: ${error.message}`,
               );
             }
 
             // Database file
             try {
               const dbPath =
-                process.env.DATABASE_PATH || path.join(process.cwd(), "highlights.db");
+                process.env.DATABASE_PATH ||
+                path.join(process.cwd(), "highlights.db");
               await fs.access(dbPath);
               mark(
                 "Database File",
                 true,
-                `Database file accessible at ${dbPath}`
+                `Database file accessible at ${dbPath}`,
               );
             } catch (error) {
               mark(
                 "Database File",
                 false,
-                `Database file not accessible: ${error.message}`
+                `Database file not accessible: ${error.message}`,
               );
             }
 
@@ -284,30 +288,26 @@ module.exports = {
               const missingTables = tables.filter((table) => {
                 const result = archivist.db
                   .prepare(
-                    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?"
+                    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
                   )
                   .get(table);
                 return !result;
               });
 
               if (missingTables.length === 0) {
-                mark(
-                  "Database Tables",
-                  true,
-                  "Required tables exist."
-                );
+                mark("Database Tables", true, "Required tables exist.");
               } else {
                 mark(
                   "Database Tables",
                   false,
-                  `Missing tables: ${missingTables.join(", ")}`
+                  `Missing tables: ${missingTables.join(", ")}`,
                 );
               }
             } catch (error) {
               mark(
                 "Database Tables",
                 false,
-                `Failed to verify tables: ${error.message}`
+                `Failed to verify tables: ${error.message}`,
               );
             }
 
@@ -319,13 +319,13 @@ module.exports = {
                 isReady,
                 isReady
                   ? `Client logged in as ${interaction.client.user.tag}`
-                  : "Client is not logged in."
+                  : "Client is not logged in.",
               );
             } catch (error) {
               mark(
                 "Discord Connection",
                 false,
-                `Failed to verify Discord connection: ${error.message}`
+                `Failed to verify Discord connection: ${error.message}`,
               );
             }
 
@@ -337,13 +337,13 @@ module.exports = {
                 commandCount >= 1,
                 commandCount >= 1
                   ? `Loaded ${commandCount} command(s).`
-                  : "No commands loaded."
+                  : "No commands loaded.",
               );
             } catch (error) {
               mark(
                 "Command Registry",
                 false,
-                `Failed to inspect command registry: ${error.message}`
+                `Failed to inspect command registry: ${error.message}`,
               );
             }
 
@@ -414,7 +414,7 @@ module.exports = {
                 name: "🆘 Help",
                 value: "/archivist help",
                 inline: true,
-              }
+              },
             )
             .setColor(0x9932cc)
             .setTimestamp();

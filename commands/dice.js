@@ -10,7 +10,7 @@ module.exports = {
         .setDescription("Number of sides on the dice (2-100)")
         .setMinValue(2)
         .setMaxValue(100)
-        .setRequired(false)
+        .setRequired(false),
     ),
 
   async execute(interaction) {
