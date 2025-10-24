@@ -1,6 +1,6 @@
 # 🤖 Discord Bot Archivist - Modernized
 
-An intelligent Discord bot that automatically detects and archives highlights in server messages. **Fully modernized with Slash Commands and improved privacy compliance.**
+A Discord bot that automatically detects and archives highlights in server messages. **Fully modernized with Slash Commands and improved privacy compliance.**
 
 ## ✨ New Features (Modernization 2024)
 
@@ -39,7 +39,7 @@ DISCORD_TOKEN=your_bot_token_here
 PRIVACY_SALT=your_random_32_byte_hex_string_here
 
 # Bot Configuration
-BOT_ACTIVITY_NAME=with AI
+BOT_ACTIVITY_NAME=Highlight Watch
 BOT_ACTIVITY_TYPE=PLAYING
 
 # Highlight Detection
@@ -64,25 +64,18 @@ npm start
 - `/random` - Generates a random number (1-100)
 - `/dice [sides]` - Rolls dice with a specific number of sides
 
+### Highlight Tools
+- `/analyze <message>` - Analyze a message for highlight potential
+- `/weekly` - Show the weekly highlights report
+- `/privacy consent value:on|off` - Opt in or out of highlight tracking
+- `/privacy status` - Display your current privacy status
+
 ### Archivist Commands
-- `/analyze <message>` - Analyzes a message for highlight potential
-- `/weekly` - Shows weekly highlights
-- `/monthly` - Shows monthly highlights
-- `/export` - Exports highlights as Markdown file
-
-### Privacy & Data Protection
-- `/privacy opt-in` - Enables data collection for analysis
-- `/privacy opt-out` - Disables data collection and deletes data
-- `/privacy status` - Shows current privacy status
-- `/privacy delete-my-data` - Deletes all stored data
-- `/privacy help` - Shows privacy information
-
-### Advanced Archivist Commands
-- `/archivist leaderboard` - Shows highlight leaderboard
-- `/archivist points [user]` - Shows user points
-- `/archivist backup` - Creates a backup of highlights
-- `/archivist clear` - Deletes all highlights (admins only)
-- `/archivist help` - Shows archivist help
+- `/archivist leaderboard` - Show the highlight leaderboard
+- `/archivist points [user]` - Show user highlight points
+- `/archivist backup` - Create a backup of highlights
+- `/archivist clear` - Delete all highlights (admins only)
+- `/archivist help` - List archivist subcommands
 
 ## 🔒 Privacy & Compliance
 
@@ -114,8 +107,6 @@ discord-bot-archivist-main/
 │   ├── dice.js
 │   ├── analyze.js
 │   ├── weekly.js
-│   ├── monthly.js
-│   ├── export.js
 │   ├── privacy.js
 │   └── archivist.js
 ├── index.js            # Main bot file
@@ -142,7 +133,7 @@ DISCORD_TOKEN=your_bot_token_here
 PRIVACY_SALT=your_random_32_byte_hex_string_here
 
 # Bot Behavior
-BOT_ACTIVITY_NAME=with AI
+BOT_ACTIVITY_NAME=Highlight Watch
 BOT_ACTIVITY_TYPE=PLAYING
 
 # Highlight Detection

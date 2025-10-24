@@ -1,7 +1,7 @@
 {
   "name": "discord-bot",
   "version": "1.0.0",
-  "description": "An AI-powered Discord bot for automatically detecting and archiving server highlights.",
+  "description": "A Discord bot that detects and archives server highlights.",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
@@ -20,5 +20,9 @@
     "dotenv": "^16.6.1",
     "natural": "^8.1.0",
     "sentiment": "^5.0.2"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^10.1.8"
   }
 }
