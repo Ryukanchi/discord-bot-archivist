@@ -1,61 +1,100 @@
-# 🌐 Language
+# ✨ Archivist
 
-[🇬🇧 English](#-english) · [🇩🇪 Deutsch](#-deutsch) · [🇪🇸 Español](#-español)
+**A privacy-first Discord bot for the moments your community should not lose.**
+
+*Not a full chat archive. A memory layer for your community.*
+
+🇬🇧 [English](#-english) | 🇩🇪 [Deutsch](#-deutsch) | 🇪🇸 [Español](#-español)
 
 ---
 
 # 🇬🇧 English
 
-# ✨ Archivist
+## Archivist
 
-Archivist is a Discord bot that helps your server keep the moments worth remembering.  
-It turns strong messages into highlights, keeps an eye on recurring favorites, and does it with privacy in mind.
+Archivist helps Discord communities hold on to the messages that actually matter.  
+It turns standout conversations into highlights, daily featured moments, and weekly recaps without trying to store everything.
 
-## What it does
+This is not a utility bot trying to do a little bit of everything. Archivist is focused on one job: helping communities remember what was worth keeping.
 
-- creates message highlights based on scoring
-- reacts to changes when reactions or content change
-- cleans up stored highlights when messages are deleted
-- posts rich highlight embeds with context and a jump link
-- features a daily Moment of the Day
-- posts a Weekly Recap
-- lets you preview scoring with `/analyze`
-- gives admins a control system inside Discord
-- stores data in SQLite
-- uses a consent-based privacy system
+## Visual Preview
 
-## Why it’s different
-
-Archivist is built to feel useful without being noisy.  
-It is not trying to be everything at once. It focuses on memorable messages, clean controls, and privacy that actually matters.
+![Highlight Example](#)
+![Moment of the Day Example](#)
+![Weekly Recap Example](#)
 
 ## Features
 
-### Highlights
+- **Smart highlight detection**  
+  Scores messages using reactions, sentiment, keywords, and surrounding context.
 
-Archivist scores messages using reactions, sentiment, keywords, and context.  
-When a message crosses the threshold, it can become a highlight. If reactions or content change later, the highlight can be promoted or demoted automatically.
+- **Promote / demote behavior**  
+  Keeps highlights honest when reactions change or a message is edited later.
 
-### Moment of the Day
+- **Polished highlight embeds**  
+  Shares memorable messages with content, author, channel, score, reactions, and a jump link.
 
-Archivist can pick one standout saved message as the daily Moment of the Day and post it as a featured moment.
+- **Moment of the Day**  
+  Brings back one standout saved message as a daily featured moment.
 
-### Weekly Recap
+- **Weekly Recap**  
+  Collects the strongest saved moments into a compact weekly look back.
 
-Archivist can post a Weekly Recap so the best moments from the week are easy to revisit.
+- **`/analyze` preview**  
+  Lets you preview scoring without storing anything.
 
-### Privacy
+- **Admin controls inside Discord**  
+  Manage recurring posts, thresholds, channels, and health without leaving Discord.
 
-Archivist uses a consent-based privacy system.  
-Users can opt in, check their status, or delete their stored data.
+- **Consent-based privacy**  
+  Keeps privacy visible and user-controlled from the start.
 
-### Admin Control
+- **SQLite persistence**  
+  Lightweight local storage for highlights, settings, and privacy state.
 
-Admins get a control system inside Discord for overview, inspection, thresholds, recurring posts, health, and channel settings.
+## How it works
 
-## Commands
+### 1. Detect
 
-Commands are in English.
+Archivist watches for messages that feel meaningful, not just noisy.
+
+### 2. Save
+
+When a message crosses the threshold, Archivist stores a privacy-safe highlight record.
+
+### 3. Surface
+
+That saved moment can appear as a highlight, a daily Moment of the Day, or part of a Weekly Recap.
+
+Under the hood, Archivist combines reactions, sentiment, keywords, and message context to score messages. If a message gets stronger later, it can be promoted. If it loses signal, it can be demoted again.
+
+## Privacy-first
+
+Archivist is built around a simple idea: keep what matters, avoid storing what does not.
+
+- no full chat history
+- no raw archive of everything
+- consent-based processing
+- anonymized highlight storage
+- user-facing privacy controls
+
+Users can manage privacy with:
+
+- `/privacy consent`
+- `/privacy status`
+- `/privacy delete`
+
+## Example flow
+
+1. A message gets strong reactions and scores well
+2. Archivist saves it as a highlight
+3. It can be auto-posted as a highlight embed
+4. It may later become the **Moment of the Day**
+5. It can also appear in the **Weekly Recap**
+
+## Commands overview
+
+Core commands:
 
 ```text
 /help
@@ -79,118 +118,165 @@ Commands are in English.
 /weekly
 ```
 
-## Setup Tutorial
+## Setup
 
-1. Clone the repository to your computer.
+### Requirements
 
-```bash
-git clone <repository-url>
-cd discord-bot-archivist
-```
+- Node.js 18+
+- A Discord application with a bot user
 
-2. Install the dependencies.
+### Environment
 
-```bash
-npm install
-```
-
-3. Create a file called `.env` in the project folder.
-
-4. Put this inside the `.env` file:
+Create a `.env` file:
 
 ```env
 DISCORD_TOKEN=your_bot_token_here
 DEV_GUILD_ID=your_server_id_here
 ```
 
-5. Start the bot.
+Optional values can also be added for scoring, status, and scheduling behavior.
+
+### Install
+
+```bash
+npm install
+```
+
+### Run
 
 ```bash
 node index.js
 ```
 
-6. In Discord, run:
+After the bot is online, start with:
 
 ```text
 /archivist overview
 ```
 
-What these values mean:
+## Architecture overview
 
-- `DISCORD_TOKEN` is your bot token from the Discord Developer Portal
-- `DEV_GUILD_ID` is your Discord server ID and helps commands appear faster while testing
-- commands are in English
-- the bot needs permission to read messages, send messages, and use slash commands
+Main files:
 
-## Troubleshooting
+- `index.js`  
+  Startup, client setup, command loading, slash registration, and interaction routing
 
-- **Bot not responding?** Make sure the bot is running and invited to the correct server
-- **Commands not showing up?** Wait a moment, then try again after restarting the bot
-- **Wrong token?** Double-check the `DISCORD_TOKEN` value in `.env`
-- **Missing permissions?** Make sure the bot can read messages, send messages, and use slash commands
+- `archivist.js`  
+  Scoring, persistence, privacy logic, reports, and settings
 
-## Invite
-[Invite Archivist](#)
+- `runtime.js`  
+  Event handling, per-message queueing, scheduling, and posting logic
 
-## 🤝 Contributing
+- `commands/`  
+  Slash commands and in-Discord admin actions
 
-Contributions, ideas, and improvements are welcome.  
-Feel free to fork the project and build on top of it.
+- `embed-style.js`  
+  Shared embed styling
+
+- `archivist.test.js`  
+  Tests for scoring, runtime behavior, Moment of the Day, Weekly Recap, and cleanup
+
+## Roadmap
+
+- richer recap presentation
+- better first-run onboarding
+- broader interaction test coverage
+- stronger visibility for recurring post status
+- optional export and review tools for community memory
+
+## License
+
+License information coming soon.
 
 ---
 
 # 🇩🇪 Deutsch
 
-# ✨ Archivist
+## Archivist
 
-Archivist ist ein Discord-Bot, der deinem Server hilft, die Momente zu behalten, die man nicht vergessen möchte.  
-Er macht aus starken Nachrichten Highlights, behält wiederkehrende Lieblingsmomente im Blick und achtet dabei auf Datenschutz.
+Archivist hilft Discord-Communities dabei, die Nachrichten zu behalten, die wirklich etwas bedeutet haben.  
+Der Bot macht aus starken Gesprächen Highlights, tägliche Lieblingsmomente und wöchentliche Rückblicke, ohne den ganzen Chatverlauf speichern zu wollen.
 
-## Was er macht
+Archivist will nicht alles gleichzeitig sein. Der Fokus ist klar: bedeutende Nachrichten erkennen, datenschutzfreundlich bewahren und später wieder sichtbar machen.
 
-- erstellt Message-Highlights auf Basis eines Scores
-- reagiert auf Änderungen bei Reaktionen oder Nachrichteninhalt
-- räumt gespeicherte Highlights auf, wenn Nachrichten gelöscht werden
-- postet Highlight-Embeds mit Inhalt, Autor, Kanal, Score, Reaktionen und Jump-Link
-- bietet einen täglichen Moment of the Day
-- postet einen Weekly Recap
-- zeigt mit `/analyze` eine Vorschau auf das Scoring
-- bietet ein Admin-Kontrollsystem direkt in Discord
-- speichert Daten in SQLite
-- nutzt ein zustimmungsbasiertes Datenschutzsystem
+## Visual Preview
 
-## Warum es anders ist
-
-Archivist soll nützlich sein, ohne zu nerven.  
-Der Bot will nicht alles gleichzeitig sein. Er konzentriert sich auf erinnerungswürdige Nachrichten, klare Steuerung und Datenschutz, der wirklich mitgedacht ist.
+![Highlight Beispiel](#)
+![Moment of the Day Beispiel](#)
+![Weekly Recap Beispiel](#)
 
 ## Features
 
-### Highlights
+- **Intelligente Highlight-Erkennung**  
+  Bewertet Nachrichten anhand von Reaktionen, Sentiment, Keywords und Kontext.
 
-Archivist bewertet Nachrichten anhand von Reaktionen, Sentiment, Keywords und Kontext.  
-Wenn eine Nachricht den Schwellwert überschreitet, kann sie zum Highlight werden. Wenn sich Reaktionen oder Inhalt später ändern, wird das Highlight automatisch hoch- oder heruntergestuft.
+- **Promote- / Demote-Logik**  
+  Hält Highlights glaubwürdig, wenn sich Reaktionen ändern oder eine Nachricht später bearbeitet wird.
 
-### Moment of the Day
+- **Saubere Highlight-Embeds**  
+  Zeigt erinnerungswürdige Nachrichten mit Inhalt, Autor, Kanal, Score, Reaktionen und Jump-Link.
 
-Archivist kann jeden Tag eine gespeicherte starke Nachricht als Moment of the Day hervorheben und posten.
+- **Moment of the Day**  
+  Holt jeden Tag einen gespeicherten starken Moment noch einmal nach vorn.
 
-### Weekly Recap
+- **Weekly Recap**  
+  Bündelt die besten gespeicherten Momente der Woche in einem kompakten Rückblick.
 
-Archivist kann einen Weekly Recap posten, damit die besten Momente der Woche leicht wiederzufinden sind.
+- **`/analyze` Vorschau**  
+  Zeigt das Scoring, ohne etwas zu speichern.
 
-### Privacy
+- **Admin-Steuerung direkt in Discord**  
+  Wiederkehrende Posts, Thresholds, Kanäle und Health lassen sich direkt im Server steuern.
 
-Archivist nutzt ein zustimmungsbasiertes Datenschutzsystem.  
-Nutzer können zustimmen, ihren Status prüfen oder ihre gespeicherten Daten löschen.
+- **Zustimmungsbasierter Datenschutz**  
+  Datenschutz ist sichtbar, verständlich und von Nutzern kontrollierbar.
 
-### Admin Control
+- **SQLite-Persistenz**  
+  Leichter lokaler Speicher für Highlights, Einstellungen und Datenschutzstatus.
 
-Admins bekommen ein Kontrollsystem direkt in Discord für Übersicht, Inspektion, Schwellwerte, wiederkehrende Posts, Gesundheit und Kanaleinstellungen.
+## Wie es funktioniert
 
-## Commands
+### 1. Erkennen
 
-Die Commands sind auf Englisch.
+Archivist beobachtet Nachrichten, die bedeutungsvoll wirken, nicht einfach nur laut.
+
+### 2. Speichern
+
+Wenn eine Nachricht den Schwellwert überschreitet, speichert Archivist einen datenschutzfreundlichen Highlight-Eintrag.
+
+### 3. Wieder sichtbar machen
+
+Dieser gespeicherte Moment kann als Highlight, als täglicher Moment of the Day oder im Weekly Recap wieder auftauchen.
+
+Im Hintergrund kombiniert Archivist Reaktionen, Sentiment, Keywords und Nachrichtenkontext. Wird eine Nachricht später stärker, kann sie hochgestuft werden. Verliert sie an Signal, kann sie auch wieder heruntergestuft werden.
+
+## Privacy-first
+
+Archivist folgt einer einfachen Regel: Das Relevante behalten, den Rest nicht unnötig speichern.
+
+- kein vollständiger Chatverlauf
+- kein rohes Komplettarchiv
+- zustimmungsbasierte Verarbeitung
+- anonymisierte Highlight-Speicherung
+- sichtbare Datenschutz-Steuerung
+
+Nutzer verwalten das über:
+
+- `/privacy consent`
+- `/privacy status`
+- `/privacy delete`
+
+## Beispielablauf
+
+1. Eine Nachricht bekommt starke Reaktionen und einen guten Score
+2. Archivist speichert sie als Highlight
+3. Sie kann automatisch als Highlight-Embed gepostet werden
+4. Später kann sie zum **Moment of the Day** werden
+5. Sie kann auch im **Weekly Recap** erscheinen
+
+## Command-Überblick
+
+Wichtige Commands:
 
 ```text
 /help
@@ -214,118 +300,165 @@ Die Commands sind auf Englisch.
 /weekly
 ```
 
-## Setup Tutorial
+## Setup
 
-1. Klone das Repository auf deinen Computer.
+### Voraussetzungen
 
-```bash
-git clone <repository-url>
-cd discord-bot-archivist
-```
+- Node.js 18+
+- Eine Discord-Anwendung mit Bot-User
 
-2. Installiere die Abhängigkeiten.
+### Umgebung
 
-```bash
-npm install
-```
-
-3. Erstelle im Projektordner eine Datei mit dem Namen `.env`.
-
-4. Schreibe das in die `.env` Datei:
+Erstelle eine `.env` Datei:
 
 ```env
 DISCORD_TOKEN=your_bot_token_here
 DEV_GUILD_ID=your_server_id_here
 ```
 
-5. Starte den Bot.
+Optional können weitere Werte für Scoring, Status und Zeitsteuerung ergänzt werden.
+
+### Installation
+
+```bash
+npm install
+```
+
+### Start
 
 ```bash
 node index.js
 ```
 
-6. Führe in Discord diesen Befehl aus:
+Wenn der Bot online ist, starte mit:
 
 ```text
 /archivist overview
 ```
 
-Was diese Werte bedeuten:
+## Architekturüberblick
 
-- `DISCORD_TOKEN` ist dein Bot-Token aus dem Discord Developer Portal
-- `DEV_GUILD_ID` ist die ID deines Discord-Servers und hilft dabei, dass Commands beim Testen schneller erscheinen
-- die Commands sind auf Englisch
-- der Bot braucht Berechtigungen zum Lesen von Nachrichten, Senden von Nachrichten und Verwenden von Slash-Commands
+Wichtige Dateien:
 
-## Troubleshooting
+- `index.js`  
+  Start, Client-Setup, Command-Laden, Slash-Registrierung und Interaction-Routing
 
-- **Bot reagiert nicht?** Prüfe, ob der Bot läuft und in den richtigen Server eingeladen wurde
-- **Commands erscheinen nicht?** Warte kurz und starte den Bot danach noch einmal neu
-- **Falscher Token?** Prüfe den `DISCORD_TOKEN` Wert in deiner `.env`
-- **Fehlende Berechtigungen?** Der Bot muss Nachrichten lesen, Nachrichten senden und Slash-Commands verwenden dürfen
+- `archivist.js`  
+  Scoring, Persistenz, Datenschutzlogik, Reports und Einstellungen
 
-## Invite
-[Invite Archivist](#)
+- `runtime.js`  
+  Event-Verarbeitung, Queue pro Nachricht, Scheduling und Posting-Logik
 
-## 🤝 Contributing
+- `commands/`  
+  Slash-Commands und Admin-Aktionen in Discord
 
-Beiträge, Ideen und Verbesserungen sind willkommen.  
-Fork das Projekt gern und bau darauf auf.
+- `embed-style.js`  
+  Gemeinsamer Embed-Stil
+
+- `archivist.test.js`  
+  Tests für Scoring, Runtime-Verhalten, Moment of the Day, Weekly Recap und Cleanup
+
+## Roadmap
+
+- stärkere Darstellung für Recaps
+- besseres Onboarding für neue Server
+- breitere Tests für Interaktionsflüsse
+- mehr Sichtbarkeit für wiederkehrende Posts
+- optionale Export- und Review-Tools für Community-Memory
+
+## Lizenz
+
+Lizenzinformationen folgen noch.
 
 ---
 
 # 🇪🇸 Español
 
-# ✨ Archivist
+## Archivist
 
-Archivist es un bot de Discord que ayuda a tu servidor a guardar los momentos que vale la pena recordar.  
-Convierte mensajes fuertes en highlights, sigue los favoritos recurrentes y lo hace con privacidad en mente.
+Archivist ayuda a las comunidades de Discord a conservar los mensajes que realmente dejaron huella.  
+Convierte buenas conversaciones en highlights, momentos diarios destacados y resúmenes semanales, sin querer guardar todo el historial del chat.
 
-## Qué hace
+Archivist no intenta hacer de todo un poco. Su idea es clara: detectar mensajes importantes, guardarlos con cuidado y volver a mostrarlos cuando tenga sentido.
 
-- crea highlights de mensajes según una puntuación
-- reacciona a cambios cuando cambian las reacciones o el contenido
-- limpia highlights guardados cuando se eliminan mensajes
-- publica embeds de highlights con contenido, autor, canal, puntuación, reacciones y enlace directo
-- ofrece un Moment of the Day diario
-- publica un Weekly Recap
-- permite previsualizar la puntuación con `/analyze`
-- ofrece un sistema de control para admins dentro de Discord
-- guarda datos en SQLite
-- usa un sistema de privacidad basado en consentimiento
+## Visual Preview
 
-## Por qué es diferente
-
-Archivist está hecho para ser útil sin volverse pesado.  
-No intenta hacer de todo. Se centra en mensajes memorables, controles claros y privacidad tratada con cuidado.
+![Ejemplo de Highlight](#)
+![Ejemplo de Moment of the Day](#)
+![Ejemplo de Weekly Recap](#)
 
 ## Features
 
-### Highlights
+- **Detección inteligente de highlights**  
+  Puntúa mensajes usando reacciones, sentimiento, palabras clave y contexto.
 
-Archivist puntúa mensajes usando reacciones, sentimiento, palabras clave y contexto.  
-Cuando un mensaje supera el umbral, puede convertirse en highlight. Si luego cambian las reacciones o el contenido, el highlight puede subir o bajar automáticamente.
+- **Lógica de promote / demote**  
+  Mantiene los highlights honestos cuando cambian las reacciones o se edita un mensaje.
 
-### Moment of the Day
+- **Embeds de highlights bien presentados**  
+  Muestra mensajes memorables con contenido, autor, canal, puntuación, reacciones y enlace directo.
 
-Archivist puede elegir cada día un mensaje guardado destacado y publicarlo como Moment of the Day.
+- **Moment of the Day**  
+  Recupera cada día un momento guardado que merece volver a verse.
 
-### Weekly Recap
+- **Weekly Recap**  
+  Reúne los mejores momentos guardados de la semana en un resumen compacto.
 
-Archivist puede publicar un Weekly Recap para que los mejores momentos de la semana sean fáciles de revisitar.
+- **Vista previa con `/analyze`**  
+  Permite revisar la puntuación sin guardar nada.
 
-### Privacy
+- **Controles de admin dentro de Discord**  
+  Publicaciones recurrentes, thresholds, canales y salud del sistema se gestionan desde Discord.
 
-Archivist usa un sistema de privacidad basado en consentimiento.  
-Los usuarios pueden dar su consentimiento, revisar su estado o borrar sus datos guardados.
+- **Privacidad basada en consentimiento**  
+  La privacidad es visible, clara y controlada por los usuarios.
 
-### Admin Control
+- **Persistencia con SQLite**  
+  Almacenamiento local y ligero para highlights, ajustes y estado de privacidad.
 
-Los admins tienen un sistema de control dentro de Discord para vista general, inspección, umbrales, publicaciones recurrentes, salud del sistema y canales.
+## Cómo funciona
 
-## Commands
+### 1. Detectar
 
-Los comandos están en inglés.
+Archivist observa mensajes que parecen importantes, no solo ruidosos.
+
+### 2. Guardar
+
+Cuando un mensaje supera el umbral, Archivist guarda un registro de highlight con enfoque de privacidad.
+
+### 3. Volver a mostrar
+
+Ese momento guardado puede aparecer como highlight, como Moment of the Day o dentro del Weekly Recap.
+
+Por dentro, Archivist combina reacciones, sentimiento, palabras clave y contexto del mensaje. Si un mensaje gana fuerza más tarde, puede subir. Si pierde señal, también puede bajar.
+
+## Privacy-first
+
+Archivist sigue una idea simple: guardar lo importante sin almacenar de más.
+
+- no guarda todo el historial del chat
+- no crea un archivo bruto completo
+- usa procesamiento basado en consentimiento
+- guarda highlights de forma anonimizada
+- ofrece controles de privacidad visibles
+
+Los usuarios pueden gestionarlo con:
+
+- `/privacy consent`
+- `/privacy status`
+- `/privacy delete`
+
+## Flujo de ejemplo
+
+1. Un mensaje recibe buenas reacciones y una puntuación alta
+2. Archivist lo guarda como highlight
+3. Puede publicarse automáticamente como embed de highlight
+4. Más tarde puede convertirse en **Moment of the Day**
+5. También puede aparecer en el **Weekly Recap**
+
+## Resumen de comandos
+
+Comandos principales:
 
 ```text
 /help
@@ -349,60 +482,72 @@ Los comandos están en inglés.
 /weekly
 ```
 
-## Setup Tutorial
+## Setup
 
-1. Clona el repositorio en tu computadora.
+### Requisitos
 
-```bash
-git clone <repository-url>
-cd discord-bot-archivist
-```
+- Node.js 18+
+- Una aplicación de Discord con usuario bot
 
-2. Instala las dependencias.
+### Entorno
 
-```bash
-npm install
-```
-
-3. Crea un archivo llamado `.env` dentro de la carpeta del proyecto.
-
-4. Pon esto dentro del archivo `.env`:
+Crea un archivo `.env`:
 
 ```env
 DISCORD_TOKEN=your_bot_token_here
 DEV_GUILD_ID=your_server_id_here
 ```
 
-5. Inicia el bot.
+También puedes añadir valores opcionales para puntuación, estado y programación.
+
+### Instalación
+
+```bash
+npm install
+```
+
+### Ejecutar
 
 ```bash
 node index.js
 ```
 
-6. En Discord, ejecuta:
+Cuando el bot esté en línea, empieza con:
 
 ```text
 /archivist overview
 ```
 
-Qué significan esos valores:
+## Visión general de la arquitectura
 
-- `DISCORD_TOKEN` es el token de tu bot en el Discord Developer Portal
-- `DEV_GUILD_ID` es el ID de tu servidor de Discord y ayuda a que los comandos aparezcan más rápido durante pruebas
-- los comandos están en inglés
-- el bot necesita permisos para leer mensajes, enviar mensajes y usar slash commands
+Archivos principales:
 
-## Troubleshooting
+- `index.js`  
+  Arranque, configuración del cliente, carga de comandos, registro de slash commands y routing de interacciones
 
-- **¿El bot no responde?** Asegúrate de que el bot esté ejecutándose y esté invitado al servidor correcto
-- **¿Los comandos no aparecen?** Espera un momento y vuelve a iniciar el bot
-- **¿Token incorrecto?** Revisa el valor de `DISCORD_TOKEN` en tu `.env`
-- **¿Faltan permisos?** El bot necesita leer mensajes, enviar mensajes y usar slash commands
+- `archivist.js`  
+  Puntuación, persistencia, lógica de privacidad, reportes y ajustes
 
-## Invite
-[Invite Archivist](#)
+- `runtime.js`  
+  Manejo de eventos, cola por mensaje, scheduling y lógica de publicación
 
-## 🤝 Contributing
+- `commands/`  
+  Slash commands y acciones de admin dentro de Discord
 
-Las contribuciones, ideas y mejoras son bienvenidas.  
-Si quieres, haz un fork del proyecto y construye algo encima.
+- `embed-style.js`  
+  Estilo compartido para embeds
+
+- `archivist.test.js`  
+  Pruebas para puntuación, runtime, Moment of the Day, Weekly Recap y limpieza
+
+## Roadmap
+
+- presentación más fuerte para los recaps
+- mejor onboarding para servidores nuevos
+- más pruebas para flujos de interacción
+- mejor visibilidad del estado de publicaciones recurrentes
+- herramientas opcionales de exportación y revisión para memoria de comunidad
+
+## Licencia
+
+La información de licencia llegará pronto.
