@@ -19,7 +19,7 @@ This is not a utility bot trying to do a little bit of everything. Archivist is 
 
 ## Visual Preview
 
-![Highlight Example](#)
+![Highlight Example](./docs/highlight.png)
 ![Moment of the Day Example](#)
 ![Weekly Recap Example](#)
 
@@ -201,7 +201,7 @@ Archivist will nicht alles gleichzeitig sein. Der Fokus ist klar: bedeutende Nac
 
 ## Visual Preview
 
-![Highlight Beispiel](#)
+![Highlight Beispiel](./docs/highlight.png)
 ![Moment of the Day Beispiel](#)
 ![Weekly Recap Beispiel](#)
 
@@ -383,7 +383,7 @@ Archivist no intenta hacer de todo un poco. Su idea es clara: detectar mensajes 
 
 ## Visual Preview
 
-![Ejemplo de Highlight](#)
+![Ejemplo de Highlight](./docs/highlight.png)
 ![Ejemplo de Moment of the Day](#)
 ![Ejemplo de Weekly Recap](#)
 
