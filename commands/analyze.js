@@ -60,7 +60,9 @@ module.exports = {
           },
           {
             name: "Classification",
-            value: analysis.isHighlight ? "Highlight candidate" : "Not a highlight",
+            value: analysis.isHighlight
+              ? "Highlight candidate"
+              : "Not a highlight",
             inline: true,
           },
         )
@@ -68,7 +70,7 @@ module.exports = {
         .setTimestamp();
 
       await interaction.reply({ embeds: [embed] });
-    } catch (error) {
+    } catch {
       if (interaction.deferred || interaction.replied) {
         await interaction.followUp({
           content: "Failed to analyze the message preview.",

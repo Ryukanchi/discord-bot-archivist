@@ -2,7 +2,7 @@
 
 **A privacy-first Discord bot for the moments your community should not lose.**
 
-*Not a full chat archive. A memory layer for your community.*
+_Not a full chat archive. A memory layer for your community._
 
 🇬🇧 [English](#-english) | 🇩🇪 [Deutsch](#-deutsch) | 🇪🇸 [Español](#-español)
 
@@ -20,8 +20,8 @@ This is not a utility bot trying to do a little bit of everything. Archivist is 
 ## Visual Preview
 
 ![Highlight Example](./docs/highlight.png)
-![Moment of the Day Example](#)
-![Weekly Recap Example](#)
+
+Moment of the Day and Weekly Recap previews are coming soon.
 
 ## Features
 
@@ -66,7 +66,11 @@ When a message crosses the threshold, Archivist stores a privacy-safe highlight 
 
 That saved moment can appear as a highlight, a daily Moment of the Day, or part of a Weekly Recap.
 
+To preserve Discord channel access boundaries, saved excerpts are surfaced only in the channel they came from. Legacy rows without a provable source channel stay excluded from recaps and daily moments.
+
 Under the hood, Archivist combines reactions, sentiment, keywords, and message context to score messages. If a message gets stronger later, it can be promoted. If it loses signal, it can be demoted again.
+
+Reaction scoring counts each human, non-author voter only once across all emoji, including super reactions. If Discord cannot provide a current voter list, that unavailable reaction data does not affect the score.
 
 ## Privacy-first
 
@@ -75,8 +79,12 @@ Archivist is built around a simple idea: keep what matters, avoid storing what d
 - no full chat history
 - no raw archive of everything
 - consent-based processing
-- anonymized highlight storage
+- short, automatically redacted highlight excerpts
 - user-facing privacy controls
+
+Automatic redaction removes common structured identifiers, but it cannot reliably
+remove every free-form name, address, or identifying detail. Stored excerpts should
+therefore be treated as pseudonymous community data, not guaranteed anonymous data.
 
 Users can manage privacy with:
 
@@ -88,7 +96,7 @@ Users can manage privacy with:
 
 1. A message gets strong reactions and scores well
 2. Archivist saves it as a highlight
-3. It can be auto-posted as a highlight embed
+3. It can be auto-posted as a highlight embed in its original channel
 4. It may later become the **Moment of the Day**
 5. It can also appear in the **Weekly Recap**
 
@@ -122,8 +130,11 @@ Core commands:
 
 ### Requirements
 
-- Node.js 18+
+- Node.js 22.13+
 - A Discord application with a bot user
+- The privileged **Message Content Intent** enabled in the Discord Developer Portal
+- Bot permissions to view channels, read message history, send messages, embed links,
+  and use application commands
 
 ### Environment
 
@@ -131,10 +142,35 @@ Create a `.env` file:
 
 ```env
 DISCORD_TOKEN=your_bot_token_here
-DEV_GUILD_ID=your_server_id_here
+ALLOWED_GUILD_ID=your_server_id_here
 ```
 
 Optional values can also be added for scoring, status, and scheduling behavior.
+
+For a new database, omit or comment out `PRIVACY_SALT` to let Archivist generate a
+private 32-byte salt in `.privacy_salt` next to the database. Later starts reuse that
+file and refuse to create a replacement if the database already exists. Do not leave
+an active assignment empty. For a managed secret, use exactly
+`PRIVACY_SALT=<64 hexadecimal characters>` with no quotes, spaces, comments, or
+duplicate assignments (generate it with `openssl rand -hex 32`). Back up the salt
+securely together with the database and never rotate, delete, trim, or reformat it
+for an existing archive: changing it makes existing consent, deletion, points, and
+highlight lookups unreachable. Older nonconforming configured salts now fail at
+startup instead of being changed silently; replacing one requires a deliberate new
+database because the original Discord IDs are intentionally not stored.
+
+Archivist intentionally runs in single-server mode. The SQLite database is bound to
+`ALLOWED_GUILD_ID`, interactions and events from other servers are rejected, and
+outgoing posts are checked against the same server. If you are upgrading an existing
+non-empty database, set `LEGACY_GUILD_ID` to the same server ID for its first start,
+then remove that one-time setting.
+
+On POSIX systems, Archivist creates or corrects the SQLite database, WAL, and SHM
+files to owner-only mode (`0600`). A dedicated data directory with mode `0700` and a
+deployment umask of `0077` are still recommended. Archivist does not change the parent
+directory because `DATABASE_PATH` may point into an operator-managed location. On
+Windows, restrict the data directory with the service account's filesystem ACLs;
+POSIX mode bits do not provide equivalent access control there.
 
 ### Install
 
@@ -186,7 +222,7 @@ Main files:
 
 ## License
 
-License information coming soon.
+MIT. See [`LICENSE`](./LICENSE).
 
 ---
 
@@ -202,8 +238,8 @@ Archivist will nicht alles gleichzeitig sein. Der Fokus ist klar: bedeutende Nac
 ## Visual Preview
 
 ![Highlight Beispiel](./docs/highlight.png)
-![Moment of the Day Beispiel](#)
-![Weekly Recap Beispiel](#)
+
+Vorschauen für Moment of the Day und Weekly Recap folgen noch.
 
 ## Features
 
@@ -248,7 +284,11 @@ Wenn eine Nachricht den Schwellwert überschreitet, speichert Archivist einen da
 
 Dieser gespeicherte Moment kann als Highlight, als täglicher Moment of the Day oder im Weekly Recap wieder auftauchen.
 
+Damit Discord-Kanalrechte erhalten bleiben, werden gespeicherte Auszüge nur in ihrem Ursprungskanal wieder angezeigt. Alte Einträge ohne nachweisbaren Ursprungskanal bleiben aus Recaps und täglichen Momenten ausgeschlossen.
+
 Im Hintergrund kombiniert Archivist Reaktionen, Sentiment, Keywords und Nachrichtenkontext. Wird eine Nachricht später stärker, kann sie hochgestuft werden. Verliert sie an Signal, kann sie auch wieder heruntergestuft werden.
+
+Beim Reaktions-Score zählt jeder menschliche Nutzer außer dem Nachrichtenautor nur einmal über alle Emojis hinweg, einschließlich Super-Reactions. Kann Discord keine aktuelle Nutzerliste liefern, beeinflussen diese nicht verfügbaren Reaktionsdaten den Score nicht.
 
 ## Privacy-first
 
@@ -257,8 +297,13 @@ Archivist folgt einer einfachen Regel: Das Relevante behalten, den Rest nicht un
 - kein vollständiger Chatverlauf
 - kein rohes Komplettarchiv
 - zustimmungsbasierte Verarbeitung
-- anonymisierte Highlight-Speicherung
+- kurze, automatisch redigierte Highlight-Auszüge
 - sichtbare Datenschutz-Steuerung
+
+Die automatische Redaction entfernt typische strukturierte Kennungen, kann aber
+freie Namen, Adressen oder andere identifizierende Details nicht zuverlässig
+vollständig erkennen. Gespeicherte Auszüge sind deshalb pseudonymisierte
+Community-Daten und keine garantiert anonymen Daten.
 
 Nutzer verwalten das über:
 
@@ -270,7 +315,7 @@ Nutzer verwalten das über:
 
 1. Eine Nachricht bekommt starke Reaktionen und einen guten Score
 2. Archivist speichert sie als Highlight
-3. Sie kann automatisch als Highlight-Embed gepostet werden
+3. Sie kann automatisch in ihrem Ursprungskanal als Highlight-Embed gepostet werden
 4. Später kann sie zum **Moment of the Day** werden
 5. Sie kann auch im **Weekly Recap** erscheinen
 
@@ -304,8 +349,11 @@ Wichtige Commands:
 
 ### Voraussetzungen
 
-- Node.js 18+
+- Node.js 22.13+
 - Eine Discord-Anwendung mit Bot-User
+- Den privilegierten **Message Content Intent** im Discord Developer Portal
+- Bot-Berechtigungen zum Anzeigen von Kanälen, Lesen des Nachrichtenverlaufs,
+  Senden von Nachrichten, Einbetten von Links und Verwenden von Application Commands
 
 ### Umgebung
 
@@ -313,10 +361,29 @@ Erstelle eine `.env` Datei:
 
 ```env
 DISCORD_TOKEN=your_bot_token_here
-DEV_GUILD_ID=your_server_id_here
+ALLOWED_GUILD_ID=your_server_id_here
 ```
 
 Optional können weitere Werte für Scoring, Status und Zeitsteuerung ergänzt werden.
+
+Lasse `PRIVACY_SALT` bei einer neuen Datenbank ganz weg oder auskommentiert, damit
+Archivist daneben automatisch einen privaten 32-Byte-Salt in `.privacy_salt`
+erzeugt. Spätere Starts verwenden diese Datei erneut und erzeugen keinen Ersatz,
+falls die Datenbank bereits existiert. Eine aktive Zuweisung darf nicht leer bleiben.
+Ein selbst verwalteter Wert muss exakt als `PRIVACY_SALT=<64 Hexzeichen>` ohne
+Anführungszeichen, Leerzeichen, Kommentare oder doppelte Zuweisung eingetragen
+werden (erzeugt zum Beispiel mit `openssl rand -hex 32`). Sichere den Salt zusammen
+mit der Datenbank und ändere, lösche, kürze oder formatiere ihn bei einem bestehenden
+Archiv niemals neu: Sonst sind vorhandene Einwilligungen, Löschungen, Punkte und
+Highlight-Zuordnungen nicht mehr erreichbar. Ältere Werte in einem anderen Format
+führen nun bewusst zu einem Startfehler; ihr Austausch setzt eine absichtliche neue
+Datenbank voraus, da die ursprünglichen Discord-IDs nicht gespeichert werden.
+
+Archivist läuft absichtlich im Einzelserver-Modus. Die SQLite-Datenbank wird fest an
+`ALLOWED_GUILD_ID` gebunden; Ereignisse, Interaktionen und Zielkanäle anderer Server
+werden abgewiesen. Bei einer bestehenden, nicht leeren älteren Datenbank muss beim
+ersten Start einmalig `LEGACY_GUILD_ID` auf dieselbe Server-ID gesetzt und danach
+wieder entfernt werden.
 
 ### Installation
 
@@ -368,7 +435,7 @@ Wichtige Dateien:
 
 ## Lizenz
 
-Lizenzinformationen folgen noch.
+MIT. Siehe [`LICENSE`](./LICENSE).
 
 ---
 
@@ -384,8 +451,8 @@ Archivist no intenta hacer de todo un poco. Su idea es clara: detectar mensajes 
 ## Visual Preview
 
 ![Ejemplo de Highlight](./docs/highlight.png)
-![Ejemplo de Moment of the Day](#)
-![Ejemplo de Weekly Recap](#)
+
+Próximamente se añadirán vistas previas de Moment of the Day y Weekly Recap.
 
 ## Features
 
@@ -430,7 +497,11 @@ Cuando un mensaje supera el umbral, Archivist guarda un registro de highlight co
 
 Ese momento guardado puede aparecer como highlight, como Moment of the Day o dentro del Weekly Recap.
 
+Para respetar los permisos de cada canal de Discord, los extractos guardados solo vuelven a mostrarse en su canal de origen. Los registros antiguos sin un canal de origen demostrable quedan fuera de los resúmenes y momentos diarios.
+
 Por dentro, Archivist combina reacciones, sentimiento, palabras clave y contexto del mensaje. Si un mensaje gana fuerza más tarde, puede subir. Si pierde señal, también puede bajar.
+
+La puntuación de reacciones cuenta una sola vez a cada persona que no sea el autor, aunque use varios emojis, e incluye las superreacciones. Si Discord no puede proporcionar una lista actual de usuarios, esos datos no disponibles no afectan a la puntuación.
 
 ## Privacy-first
 
@@ -439,8 +510,13 @@ Archivist sigue una idea simple: guardar lo importante sin almacenar de más.
 - no guarda todo el historial del chat
 - no crea un archivo bruto completo
 - usa procesamiento basado en consentimiento
-- guarda highlights de forma anonimizada
+- guarda extractos breves con redacción automática
 - ofrece controles de privacidad visibles
+
+La redacción automática elimina identificadores estructurados habituales, pero no
+puede reconocer de forma fiable todos los nombres, direcciones u otros detalles de
+texto libre. Los extractos deben tratarse como datos seudónimos, no como datos con
+anonimato garantizado.
 
 Los usuarios pueden gestionarlo con:
 
@@ -452,7 +528,7 @@ Los usuarios pueden gestionarlo con:
 
 1. Un mensaje recibe buenas reacciones y una puntuación alta
 2. Archivist lo guarda como highlight
-3. Puede publicarse automáticamente como embed de highlight
+3. Puede publicarse automáticamente como embed de highlight en su canal de origen
 4. Más tarde puede convertirse en **Moment of the Day**
 5. También puede aparecer en el **Weekly Recap**
 
@@ -486,8 +562,11 @@ Comandos principales:
 
 ### Requisitos
 
-- Node.js 18+
+- Node.js 22.13+
 - Una aplicación de Discord con usuario bot
+- El **Message Content Intent** privilegiado activado en Discord Developer Portal
+- Permisos para ver canales, leer el historial, enviar mensajes, insertar enlaces y
+  usar comandos de aplicación
 
 ### Entorno
 
@@ -495,10 +574,29 @@ Crea un archivo `.env`:
 
 ```env
 DISCORD_TOKEN=your_bot_token_here
-DEV_GUILD_ID=your_server_id_here
+ALLOWED_GUILD_ID=your_server_id_here
 ```
 
 También puedes añadir valores opcionales para puntuación, estado y programación.
+
+Para una base de datos nueva, omite o deja comentado `PRIVACY_SALT` para que
+Archivist genere automáticamente un salt privado de 32 bytes en `.privacy_salt`,
+junto a la base de datos. Los siguientes arranques reutilizan ese archivo y no crean
+un sustituto si la base ya existe. No dejes una asignación activa vacía. Para
+gestionar el secreto externamente, usa exactamente
+`PRIVACY_SALT=<64 caracteres hexadecimales>` sin comillas, espacios, comentarios ni
+asignaciones duplicadas (genéralo, por ejemplo, con `openssl rand -hex 32`). Guarda
+una copia segura del salt junto con la base de datos y no lo cambies, elimines,
+recortes ni reformatees para un archivo existente: si cambia, dejan de ser accesibles
+los consentimientos, borrados, puntos y highlights anteriores. Los valores antiguos
+con otro formato ahora detienen el arranque en vez de modificarse silenciosamente;
+sustituir uno requiere crear deliberadamente una base de datos nueva porque los ID
+originales de Discord no se almacenan.
+
+Archivist funciona intencionadamente con un solo servidor. La base SQLite queda
+vinculada a `ALLOWED_GUILD_ID`; se rechazan eventos, interacciones y canales de
+destino de otros servidores. Para una base antigua no vacía, define una sola vez
+`LEGACY_GUILD_ID` con el mismo ID durante el primer inicio y elimínalo después.
 
 ### Instalación
 
@@ -550,4 +648,4 @@ Archivos principales:
 
 ## Licencia
 
-La información de licencia llegará pronto.
+MIT. Consulta [`LICENSE`](./LICENSE).

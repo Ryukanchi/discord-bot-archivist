@@ -62,8 +62,7 @@ module.exports = {
           inline: false,
         },
       )
-      .setFooter({ text: "Start with /archivist overview" })
-      ;
+      .setFooter({ text: "Start with /archivist overview" });
 
     await interaction.reply({ embeds: [embed] });
   },

@@ -1,4 +1,6 @@
-require("dotenv").config();
+const { loadEnvironment } = require("./environment.js");
+
+loadEnvironment();
 
 const {
   Client,
@@ -15,6 +17,7 @@ const path = require("path");
 const ServerArchivist = require("./archivist.js");
 const logger = require("./logger.js");
 const { createRuntime } = require("./runtime.js");
+const { isAllowedGuildId, resolveAllowedGuildId } = require("./guild-scope.js");
 
 function parseNumericEnv(name, fallback, options = {}) {
   const rawValue = process.env[name];
@@ -43,6 +46,17 @@ function validateConfiguration() {
     throw new Error("DISCORD_TOKEN is required.");
   }
 
+  const allowedGuildId = resolveAllowedGuildId();
+  if (!allowedGuildId) {
+    throw new Error(
+      "ALLOWED_GUILD_ID is required so Archivist cannot mix data between Discord servers.",
+    );
+  }
+
+  if (!/^\d{17,20}$/.test(allowedGuildId)) {
+    throw new Error("ALLOWED_GUILD_ID must be a valid Discord server ID.");
+  }
+
   if (process.env.BOT_ACTIVITY_TYPE) {
     const supportedTypes = new Set([
       "PLAYING",
@@ -59,7 +73,6 @@ function validateConfiguration() {
   }
 
   parseNumericEnv("REACTION_THRESHOLD", 3, { min: 1 });
-  parseNumericEnv("REPLY_THRESHOLD", 2, { min: 0 });
   parseNumericEnv("MIN_SCORE", 0.6, { min: 0, max: 1 });
   parseNumericEnv("DATA_RETENTION_DAYS", 30, { min: 1 });
   parseNumericEnv("MOTD_POST_HOUR", 12, { min: 0, max: 23 });
@@ -98,7 +111,9 @@ function loadCommands(client) {
       continue;
     }
 
-    logger.warn(`Skipped ${file} because it does not export both data and execute.`);
+    logger.warn(
+      `Skipped ${file} because it does not export both data and execute.`,
+    );
   }
 }
 
@@ -108,10 +123,14 @@ async function replaceCommandSet(rest, route, body, label) {
   return data;
 }
 
-async function clearGuildCommandOverrides(client, rest) {
+async function clearGuildCommandOverrides(client, rest, allowedGuildId) {
   const guilds = Array.from(client.guilds.cache.values());
 
   for (const guild of guilds) {
+    if (guild.id === allowedGuildId) {
+      continue;
+    }
+
     await rest.put(Routes.applicationGuildCommands(client.user.id, guild.id), {
       body: [],
     });
@@ -124,32 +143,21 @@ async function registerSlashCommands(client) {
     command.data.toJSON(),
   );
   const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
-  const developmentGuildId = process.env.DEV_GUILD_ID;
-
-  if (developmentGuildId) {
-    await replaceCommandSet(
-      rest,
-      Routes.applicationGuildCommands(client.user.id, developmentGuildId),
-      commands,
-      `guild (${developmentGuildId})`,
-    );
-
-    await replaceCommandSet(
-      rest,
-      Routes.applicationCommands(client.user.id),
-      [],
-      "global",
-    );
-    return;
-  }
+  const allowedGuildId = client.archivist.allowedGuildId;
 
   await replaceCommandSet(
     rest,
-    Routes.applicationCommands(client.user.id),
+    Routes.applicationGuildCommands(client.user.id, allowedGuildId),
     commands,
+    `guild (${allowedGuildId})`,
+  );
+  await replaceCommandSet(
+    rest,
+    Routes.applicationCommands(client.user.id),
+    [],
     "global",
   );
-  await clearGuildCommandOverrides(client, rest);
+  await clearGuildCommandOverrides(client, rest, allowedGuildId);
 }
 
 function registerLifecycleHandlers(client, archivist, runtime) {
@@ -178,6 +186,16 @@ function registerLifecycleHandlers(client, archivist, runtime) {
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
+    if (!isAllowedGuildId(interaction.guildId, archivist.allowedGuildId)) {
+      if (interaction.isRepliable?.()) {
+        await interaction.reply({
+          content: "Archivist is configured for a different Discord server.",
+          ephemeral: true,
+        });
+      }
+      return;
+    }
+
     if (interaction.isButton()) {
       for (const command of client.commands.values()) {
         if (typeof command.handleComponent !== "function") {
@@ -267,10 +285,17 @@ function registerLifecycleHandlers(client, archivist, runtime) {
 async function main() {
   validateConfiguration();
 
+  const allowedGuildId = resolveAllowedGuildId();
   const client = createClient();
-  const archivist = new ServerArchivist();
-  const runtime = createRuntime({ archivist, logger });
+  const archivist = new ServerArchivist({ allowedGuildId });
+  const runtime = createRuntime({ archivist, logger, allowedGuildId });
 
+  Object.defineProperty(client, "allowedGuildId", {
+    value: allowedGuildId,
+    writable: false,
+    configurable: false,
+    enumerable: true,
+  });
   client.archivist = archivist;
   client.runtime = runtime;
 

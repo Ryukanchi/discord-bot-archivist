@@ -3,11 +3,12 @@ const Database = require("better-sqlite3");
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
+const { ReactionType } = require("discord.js");
+const { getGuildId, resolveAllowedGuildId } = require("./guild-scope.js");
+const { validatePrivacySalt } = require("./privacy-salt.js");
 
 const DEFAULT_THRESHOLDS = Object.freeze({
-  sentiment: 0.3,
   reactions: 3,
-  replies: 2,
   minScore: 0.6,
   keywords: ["lol", "haha", "omg", "wtf", "epic", "amazing", "wow"],
 });
@@ -16,32 +17,99 @@ const DEFAULT_RETENTION_DAYS = 30;
 const DEFAULT_WEEKLY_LIMIT = 5;
 const HIGHLIGHT_POINT_VALUE = 10;
 const DEFAULT_MOTD_POST_HOUR = 12;
+const REACTION_TYPES = Object.freeze([ReactionType.Normal, ReactionType.Burst]);
 
 class ServerArchivist {
-  constructor() {
+  constructor(options = {}) {
     this.databasePath = process.env.DATABASE_PATH || "./highlights.db";
+    this.allowedGuildId = options.allowedGuildId || resolveAllowedGuildId();
+    if (!this.allowedGuildId) {
+      throw new Error(
+        "ALLOWED_GUILD_ID is required so stored data cannot cross Discord servers.",
+      );
+    }
     this.highlightThresholds = this.loadHighlightThresholds();
     this.dataRetentionDays = this.loadRetentionDays();
     this.autoDeleteEnabled = this.loadAutoDeleteFlag();
     this.cleanupInterval = null;
 
     try {
-      this.db = new Database(this.databasePath);
+      this.privacySalt = this.loadPrivacySalt();
+      this.db = this.openDatabase();
+      this.hardenDatabaseFilePermissions();
       this.configureDatabase();
       this.initDatabase();
+      this.bindDatabaseToGuild();
       this.runMigrations();
+      this.createIndexes();
+      this.hardenDatabaseFilePermissions();
       this.prepareStatements();
-      this.privacySalt = this.loadPrivacySalt();
       this.sentiment = new sentiment();
 
       if (this.autoDeleteEnabled) {
         this.startDataRetentionJob();
       }
     } catch (error) {
+      try {
+        this.db?.close();
+      } catch {
+        // Preserve the original initialization error.
+      }
       throw new Error(
         `Failed to initialize the archivist service: ${error.message}`,
         { cause: error },
       );
+    }
+  }
+
+  openDatabase() {
+    if (process.platform === "win32") {
+      return new Database(this.databasePath);
+    }
+
+    const previousUmask = process.umask(0o077);
+    try {
+      return new Database(this.databasePath);
+    } finally {
+      process.umask(previousUmask);
+    }
+  }
+
+  hardenDatabaseFilePermissions() {
+    if (process.platform === "win32") {
+      return;
+    }
+
+    const mainDatabase = this.db
+      .pragma("database_list")
+      .find((database) => database.name === "main");
+    if (!mainDatabase?.file) {
+      return;
+    }
+
+    const databaseFiles = [
+      mainDatabase.file,
+      `${mainDatabase.file}-wal`,
+      `${mainDatabase.file}-shm`,
+    ];
+    for (const [index, file] of databaseFiles.entries()) {
+      try {
+        fs.chmodSync(file, 0o600);
+        const mode = fs.statSync(file).mode & 0o777;
+        if (mode !== 0o600) {
+          throw new Error(
+            `SQLite file permissions remained ${mode.toString(8)} after hardening.`,
+          );
+        }
+      } catch (error) {
+        if (index > 0 && error.code === "ENOENT") {
+          continue;
+        }
+        throw new Error(
+          `Could not enforce owner-only permissions for SQLite file ${file}.`,
+          { cause: error },
+        );
+      }
     }
   }
 
@@ -53,27 +121,28 @@ class ServerArchivist {
   }
 
   loadHighlightThresholds() {
+    const rawReactionThreshold = process.env.REACTION_THRESHOLD;
+    const parsedReactionThreshold = Number.parseInt(rawReactionThreshold, 10);
+    const rawMinScore = process.env.MIN_SCORE;
+    const parsedMinScore = Number.parseFloat(rawMinScore);
+
     return {
-      sentiment:
-        Number.parseFloat(process.env.SENTIMENT_THRESHOLD) ||
-        DEFAULT_THRESHOLDS.sentiment,
-      reactions:
-        Number.parseInt(process.env.REACTION_THRESHOLD, 10) ||
-        DEFAULT_THRESHOLDS.reactions,
-      replies:
-        Number.parseInt(process.env.REPLY_THRESHOLD, 10) ||
-        DEFAULT_THRESHOLDS.replies,
-      minScore:
-        Number.parseFloat(process.env.MIN_SCORE) || DEFAULT_THRESHOLDS.minScore,
-      keywords: process.env.KEYWORDS
-        ? Array.from(
-            new Set(
-              process.env.KEYWORDS.split(",")
-                .map((keyword) => keyword.trim().toLowerCase())
-                .filter(Boolean),
-            ),
-          )
-        : DEFAULT_THRESHOLDS.keywords,
+      reactions: Number.isFinite(parsedReactionThreshold)
+        ? parsedReactionThreshold
+        : DEFAULT_THRESHOLDS.reactions,
+      minScore: Number.isFinite(parsedMinScore)
+        ? parsedMinScore
+        : DEFAULT_THRESHOLDS.minScore,
+      keywords:
+        process.env.KEYWORDS != null
+          ? Array.from(
+              new Set(
+                process.env.KEYWORDS.split(",")
+                  .map((keyword) => keyword.trim().toLowerCase())
+                  .filter(Boolean),
+              ),
+            )
+          : DEFAULT_THRESHOLDS.keywords,
     };
   }
 
@@ -114,11 +183,15 @@ class ServerArchivist {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         hashed_author_id TEXT NOT NULL,
         hashed_message_id TEXT,
+        hashed_source_channel_id TEXT NOT NULL,
         channel_type TEXT NOT NULL,
         anonymized_content TEXT NOT NULL,
         sentiment_score REAL NOT NULL,
         reaction_count INTEGER NOT NULL,
         is_highlight BOOLEAN NOT NULL,
+        highlight_score REAL NOT NULL DEFAULT 0,
+        keyword_count INTEGER NOT NULL DEFAULT 0,
+        reply_count INTEGER NOT NULL DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
@@ -140,12 +213,76 @@ class ServerArchivist {
     `);
 
     this.db.exec(`
+      CREATE TABLE IF NOT EXISTS schema_migrations (
+        version INTEGER PRIMARY KEY,
+        applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS instance_metadata (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+  }
+
+  bindDatabaseToGuild() {
+    const owner = this.db
+      .prepare("SELECT value FROM instance_metadata WHERE key = ?")
+      .get("allowed_guild_id");
+
+    if (owner && owner.value !== this.allowedGuildId) {
+      throw new Error(
+        `This database belongs to Discord server ${owner.value}, not ${this.allowedGuildId}.`,
+      );
+    }
+
+    if (owner) {
+      return;
+    }
+
+    const dataTables = [
+      "user_points",
+      "user_privacy",
+      "highlights_anonymized",
+      "app_settings",
+      "channel_settings",
+    ];
+    const hasExistingData = dataTables.some((table) => {
+      const row = this.db
+        .prepare(`SELECT EXISTS(SELECT 1 FROM ${table}) AS found`)
+        .get();
+      return row.found === 1;
+    });
+
+    if (
+      hasExistingData &&
+      process.env.LEGACY_GUILD_ID !== this.allowedGuildId
+    ) {
+      throw new Error(
+        "This existing database has no server owner. Set LEGACY_GUILD_ID to the same value as ALLOWED_GUILD_ID once to attest its origin.",
+      );
+    }
+
+    this.db
+      .prepare("INSERT INTO instance_metadata (key, value) VALUES (?, ?)")
+      .run("allowed_guild_id", this.allowedGuildId);
+  }
+
+  createIndexes() {
+    this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_highlights_anonymized_created_at
       ON highlights_anonymized(created_at)
     `);
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_highlights_anonymized_is_highlight
       ON highlights_anonymized(is_highlight)
+    `);
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_highlights_anonymized_source_channel_created_at
+      ON highlights_anonymized(hashed_source_channel_id, created_at)
     `);
     this.db.exec(`
       CREATE UNIQUE INDEX IF NOT EXISTS idx_highlights_anonymized_hashed_message_id
@@ -162,22 +299,69 @@ class ServerArchivist {
   }
 
   runMigrations() {
-    const columns = this.db.prepare("PRAGMA table_info(highlights_anonymized)").all();
-    const hasHashedMessageId = columns.some(
-      (column) => column.name === "hashed_message_id",
-    );
+    const migration = this.db.transaction(() => {
+      const appliedVersions = new Set(
+        this.db
+          .prepare("SELECT version FROM schema_migrations")
+          .all()
+          .map((row) => row.version),
+      );
 
-    if (!hasHashedMessageId) {
-      this.db.exec(`
-        ALTER TABLE highlights_anonymized
-        ADD COLUMN hashed_message_id TEXT
-      `);
-    }
+      if (!appliedVersions.has(2)) {
+        const columns = this.db
+          .prepare("PRAGMA table_info(highlights_anonymized)")
+          .all();
+        const columnNames = new Set(columns.map((column) => column.name));
+        const additions = [
+          ["hashed_message_id", "TEXT"],
+          ["highlight_score", "REAL NOT NULL DEFAULT 0"],
+          ["keyword_count", "INTEGER NOT NULL DEFAULT 0"],
+          ["reply_count", "INTEGER NOT NULL DEFAULT 0"],
+        ];
 
-    this.db.exec(`
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_highlights_anonymized_hashed_message_id
-      ON highlights_anonymized(hashed_message_id)
-    `);
+        for (const [name, definition] of additions) {
+          if (!columnNames.has(name)) {
+            this.db.exec(
+              `ALTER TABLE highlights_anonymized ADD COLUMN ${name} ${definition}`,
+            );
+          }
+        }
+
+        this.db
+          .prepare(
+            `
+            UPDATE highlights_anonymized
+            SET highlight_score = ?
+            WHERE is_highlight = TRUE AND highlight_score = 0
+          `,
+          )
+          .run(this.highlightThresholds.minScore);
+        this.db
+          .prepare("INSERT INTO schema_migrations (version) VALUES (2)")
+          .run();
+      }
+
+      if (!appliedVersions.has(3)) {
+        const columns = this.db
+          .prepare("PRAGMA table_info(highlights_anonymized)")
+          .all();
+        const columnNames = new Set(columns.map((column) => column.name));
+        if (!columnNames.has("hashed_source_channel_id")) {
+          this.db.exec(
+            "ALTER TABLE highlights_anonymized ADD COLUMN hashed_source_channel_id TEXT",
+          );
+        }
+
+        this.db.exec(
+          "DELETE FROM highlights_anonymized WHERE is_highlight = FALSE",
+        );
+        this.db
+          .prepare("INSERT INTO schema_migrations (version) VALUES (3)")
+          .run();
+      }
+    });
+
+    migration();
   }
 
   prepareStatements() {
@@ -202,7 +386,8 @@ class ServerArchivist {
           updated_at = CURRENT_TIMESTAMP
       `),
       getStoredHighlight: this.db.prepare(`
-        SELECT hashed_author_id, hashed_message_id, sentiment_score, reaction_count, is_highlight, created_at
+        SELECT hashed_author_id, hashed_message_id, sentiment_score, reaction_count,
+               is_highlight, highlight_score, keyword_count, reply_count, created_at
         FROM highlights_anonymized
         WHERE hashed_message_id = ?
       `),
@@ -210,20 +395,28 @@ class ServerArchivist {
         INSERT INTO highlights_anonymized (
           hashed_author_id,
           hashed_message_id,
+          hashed_source_channel_id,
           channel_type,
           anonymized_content,
           sentiment_score,
           reaction_count,
-          is_highlight
+          is_highlight,
+          highlight_score,
+          keyword_count,
+          reply_count
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(hashed_message_id) DO UPDATE SET
           hashed_author_id = excluded.hashed_author_id,
+          hashed_source_channel_id = excluded.hashed_source_channel_id,
           channel_type = excluded.channel_type,
           anonymized_content = excluded.anonymized_content,
           sentiment_score = excluded.sentiment_score,
           reaction_count = excluded.reaction_count,
-          is_highlight = excluded.is_highlight
+          is_highlight = excluded.is_highlight,
+          highlight_score = excluded.highlight_score,
+          keyword_count = excluded.keyword_count,
+          reply_count = excluded.reply_count
       `),
       deleteHighlightByMessageId: this.db.prepare(`
         DELETE FROM highlights_anonymized
@@ -233,8 +426,12 @@ class ServerArchivist {
         DELETE FROM highlights_anonymized
         WHERE hashed_author_id = ?
       `),
-      deleteUserPoints: this.db.prepare("DELETE FROM user_points WHERE user_id = ?"),
-      deleteUserPrivacy: this.db.prepare("DELETE FROM user_privacy WHERE user_id = ?"),
+      deleteUserPoints: this.db.prepare(
+        "DELETE FROM user_points WHERE user_id = ?",
+      ),
+      deleteUserPrivacy: this.db.prepare(
+        "DELETE FROM user_privacy WHERE user_id = ?",
+      ),
       mutateUserPoints: this.db.prepare(`
         INSERT INTO user_points (user_id, points, highlights_created, votes_cast, last_updated)
         VALUES (?, ?, ?, 0, CURRENT_TIMESTAMP)
@@ -246,14 +443,18 @@ class ServerArchivist {
       fetchHighlightsSince: this.db.prepare(`
         SELECT *
         FROM highlights_anonymized
-        WHERE created_at >= ? AND is_highlight = TRUE
+        WHERE hashed_source_channel_id = ?
+          AND created_at >= ?
+          AND is_highlight = TRUE
         ORDER BY reaction_count DESC, sentiment_score DESC, created_at DESC
         LIMIT ?
       `),
       fetchDailyMomentCandidates: this.db.prepare(`
         SELECT *
         FROM highlights_anonymized
-        WHERE created_at >= ? AND is_highlight = TRUE
+        WHERE hashed_source_channel_id = ?
+          AND created_at >= ?
+          AND is_highlight = TRUE
         ORDER BY created_at DESC
         LIMIT ?
       `),
@@ -262,9 +463,18 @@ class ServerArchivist {
         FROM highlights_anonymized
         WHERE is_highlight = TRUE
       `),
+      fetchExpiredHighlights: this.db.prepare(`
+        SELECT hashed_author_id, is_highlight
+        FROM highlights_anonymized
+        WHERE created_at < ?
+      `),
       deleteExpiredHighlights: this.db.prepare(`
         DELETE FROM highlights_anonymized
         WHERE created_at < ?
+      `),
+      deleteEmptyUserPoints: this.db.prepare(`
+        DELETE FROM user_points
+        WHERE points = 0 AND highlights_created = 0 AND votes_cast = 0
       `),
       getSetting: this.db.prepare(`
         SELECT value
@@ -312,80 +522,149 @@ class ServerArchivist {
       );
       const wasHighlight = Boolean(existingRecord?.is_highlight);
 
+      if (!analysis.isHighlight) {
+        if (existingRecord) {
+          this.statements.deleteHighlightByMessageId.run(
+            analysis.hashedMessageId,
+          );
+        }
+
+        if (wasHighlight) {
+          this.applyPointMutation(
+            existingRecord.hashed_author_id,
+            -HIGHLIGHT_POINT_VALUE,
+            -1,
+          );
+        }
+
+        return {
+          ...analysis,
+          wasHighlight,
+          becameHighlight: false,
+          lostHighlight: wasHighlight,
+        };
+      }
+
       this.statements.upsertHighlight.run(
         analysis.hashedAuthorId,
         analysis.hashedMessageId,
+        this.hashUserId(analysis.channelId),
         analysis.channelType,
         analysis.anonymizedContent,
         analysis.sentimentScore,
         analysis.reactionCount,
         analysis.isHighlight ? 1 : 0,
+        analysis.highlightScore,
+        analysis.keywords.length,
+        analysis.replyCount,
       );
 
       if (!wasHighlight && analysis.isHighlight) {
-        this.applyPointMutation(analysis.hashedAuthorId, HIGHLIGHT_POINT_VALUE, 1);
-      }
-
-      if (wasHighlight && !analysis.isHighlight) {
-        this.applyPointMutation(analysis.hashedAuthorId, -HIGHLIGHT_POINT_VALUE, -1);
+        this.applyPointMutation(
+          analysis.hashedAuthorId,
+          HIGHLIGHT_POINT_VALUE,
+          1,
+        );
       }
 
       return {
         ...analysis,
         wasHighlight,
         becameHighlight: analysis.isHighlight && !wasHighlight,
-        lostHighlight: wasHighlight && !analysis.isHighlight,
+        lostHighlight: false,
       };
     });
 
-    this.removeStoredMessageTransaction = this.db.transaction((hashedMessageId) => {
-      const existingRecord = this.statements.getStoredHighlight.get(hashedMessageId);
-      if (!existingRecord) {
-        return { removed: false, removedHighlight: false };
-      }
+    this.removeStoredMessageTransaction = this.db.transaction(
+      (hashedMessageId) => {
+        const existingRecord =
+          this.statements.getStoredHighlight.get(hashedMessageId);
+        if (!existingRecord) {
+          return { removed: false, removedHighlight: false };
+        }
 
-      this.statements.deleteHighlightByMessageId.run(hashedMessageId);
+        this.statements.deleteHighlightByMessageId.run(hashedMessageId);
 
-      if (existingRecord.is_highlight) {
-        this.applyPointMutation(
-          existingRecord.hashed_author_id,
-          -HIGHLIGHT_POINT_VALUE,
-          -1,
-        );
-      }
+        if (existingRecord.is_highlight) {
+          this.applyPointMutation(
+            existingRecord.hashed_author_id,
+            -HIGHLIGHT_POINT_VALUE,
+            -1,
+          );
+        }
 
-      return {
-        removed: true,
-        removedHighlight: Boolean(existingRecord.is_highlight),
-      };
-    });
+        return {
+          removed: true,
+          removedHighlight: Boolean(existingRecord.is_highlight),
+        };
+      },
+    );
 
     this.deleteUserDataTransaction = this.db.transaction((hashedUserId) => {
       this.statements.deleteHighlightsByAuthorId.run(hashedUserId);
       this.statements.deleteUserPoints.run(hashedUserId);
       this.statements.deleteUserPrivacy.run(hashedUserId);
     });
+
+    this.purgeExpiredHighlightsTransaction = this.db.transaction((cutoff) => {
+      const expiredRows = this.statements.fetchExpiredHighlights.all(cutoff);
+      for (const row of expiredRows) {
+        if (row.is_highlight) {
+          this.applyPointMutation(
+            row.hashed_author_id,
+            -HIGHLIGHT_POINT_VALUE,
+            -1,
+          );
+        }
+      }
+
+      const deletion = this.statements.deleteExpiredHighlights.run(cutoff);
+      this.statements.deleteEmptyUserPoints.run();
+      return deletion.changes;
+    });
+
+    this.clearAllDataTransaction = this.db.transaction(() => {
+      this.db.exec("DELETE FROM highlights_anonymized");
+      this.db.exec("DELETE FROM user_points");
+      this.db.exec("DELETE FROM user_privacy");
+      this.db.exec("DELETE FROM app_settings");
+      this.db.exec("DELETE FROM channel_settings");
+    });
+  }
+
+  getAbsoluteDatabasePath() {
+    return path.resolve(process.cwd(), this.databasePath);
   }
 
   getPrivacySaltFilePath() {
-    const absoluteDatabasePath = path.resolve(process.cwd(), this.databasePath);
-    return path.join(path.dirname(absoluteDatabasePath), ".privacy_salt");
+    return path.join(
+      path.dirname(this.getAbsoluteDatabasePath()),
+      ".privacy_salt",
+    );
   }
 
   loadPrivacySalt() {
-    if (process.env.PRIVACY_SALT) {
-      return process.env.PRIVACY_SALT;
+    const configuredSalt = process.env.PRIVACY_SALT;
+    if (configuredSalt !== undefined) {
+      return validatePrivacySalt(configuredSalt, "PRIVACY_SALT");
     }
 
     const saltFilePath = this.getPrivacySaltFilePath();
     if (fs.existsSync(saltFilePath)) {
-      const fileSalt = fs.readFileSync(saltFilePath, "utf8").trim();
+      const fileContents = fs.readFileSync(saltFilePath, "utf8");
+      const fileSalt = fileContents.replace(/\r?\n$/, "");
       try {
         fs.chmodSync(saltFilePath, 0o600);
       } catch {
         // Best-effort hardening only.
       }
-      return fileSalt;
+      return validatePrivacySalt(fileSalt, "privacy salt file");
+    }
+
+    if (fs.existsSync(this.getAbsoluteDatabasePath())) {
+      throw new Error(
+        "Missing privacy salt for an existing database. Restore its original PRIVACY_SALT or .privacy_salt backup; refusing to generate a replacement because existing privacy lookups would become unreachable.",
+      );
     }
 
     const generatedSalt = crypto.randomBytes(32).toString("hex");
@@ -405,20 +684,28 @@ class ServerArchivist {
       .substring(0, 16);
   }
 
-  anonymizeContent(content) {
+  redactContent(content) {
     return String(content)
       .replace(/<@!?\d+>/g, "@[USER]")
       .replace(/<#\d+>/g, "#[CHANNEL]")
       .replace(/<@&\d+>/g, "@[ROLE]")
+      .replace(/<a?:[A-Za-z0-9_]+:\d+>/g, "[EMOJI]")
+      .replace(/<t:\d+(?::[tTdDfFR])?>/g, "[TIME]")
       .replace(/https?:\/\/\S+/g, "[LINK]")
-      .replace(
-        /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g,
-        "[EMAIL]",
-      )
+      .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, "[EMAIL]")
       .replace(/\b\d{4}[-/]\d{2}[-/]\d{2}\b/g, "[DATE]")
       .replace(/\b\d{2}:\d{2}\b/g, "[TIME]")
+      .replace(
+        /\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b/g,
+        "[IP]",
+      )
+      .replace(/(^|\s)(?:\+?\d[\d\s().-]{7,}\d)(?=$|\s|[,.!?;:])/g, "$1[PHONE]")
       .replace(/(^|\s)@\w+/g, "$1@[USER]")
       .substring(0, 200);
+  }
+
+  anonymizeContent(content) {
+    return this.redactContent(content);
   }
 
   async checkUserConsent(userId) {
@@ -427,7 +714,10 @@ class ServerArchivist {
   }
 
   async setUserConsent(userId, consent) {
-    this.statements.upsertUserConsent.run(this.hashUserId(userId), consent ? 1 : 0);
+    this.statements.upsertUserConsent.run(
+      this.hashUserId(userId),
+      consent ? 1 : 0,
+    );
   }
 
   async deleteUserData(userId) {
@@ -447,6 +737,7 @@ class ServerArchivist {
       lostHighlight: false,
       sentimentScore: 0,
       reactionCount: 0,
+      replyCount: 0,
       keywords: [],
       channelType: "unknown",
       channelId: null,
@@ -466,27 +757,75 @@ class ServerArchivist {
     };
   }
 
-  getReactionCount(message) {
+  async getReactionCount(message) {
     const reactionCache = message?.reactions?.cache;
     if (!reactionCache) {
       return 0;
     }
 
-    if (typeof reactionCache.values === "function") {
-      return Array.from(reactionCache.values()).reduce(
-        (total, reaction) => total + (reaction?.count || 0),
-        0,
-      );
+    const reactions =
+      typeof reactionCache.values === "function"
+        ? Array.from(reactionCache.values())
+        : [];
+    const uniqueVoterIds = new Set();
+    const authorId = message.author?.id;
+    const scoreCap = Math.max(1, this.getReactionThreshold());
+
+    const addUsers = (collection) => {
+      if (!collection || typeof collection.values !== "function") {
+        return;
+      }
+
+      for (const user of collection.values()) {
+        if (user?.id && !user.bot && user.id !== authorId) {
+          uniqueVoterIds.add(user.id);
+        }
+      }
+    };
+
+    for (const reaction of reactions) {
+      const users = reaction?.users;
+      if (!users) {
+        continue;
+      }
+
+      if (typeof users.fetch !== "function") {
+        continue;
+      }
+
+      for (const type of REACTION_TYPES) {
+        let after;
+        try {
+          while (true) {
+            const page = await users.fetch({
+              type,
+              limit: 100,
+              ...(after ? { after } : {}),
+            });
+            const pageUsers =
+              page && typeof page.values === "function"
+                ? Array.from(page.values())
+                : [];
+            addUsers(page);
+
+            if (uniqueVoterIds.size >= scoreCap) {
+              return scoreCap;
+            }
+
+            const nextAfter = pageUsers.at(-1)?.id;
+            if (pageUsers.length < 100 || !nextAfter || nextAfter === after) {
+              break;
+            }
+            after = nextAfter;
+          }
+        } catch {
+          // Fail closed for this reaction type. Only users returned by a
+          // successful enumeration in this evaluation may affect the score.
+        }
+      }
     }
 
-    if (typeof reactionCache.reduce === "function") {
-      return reactionCache.reduce(
-        (total, reaction) => total + (reaction?.count || 0),
-        0,
-      );
-    }
-
-    return Number.isInteger(reactionCache.size) ? reactionCache.size : 0;
+    return uniqueVoterIds.size;
   }
 
   detectKeywords(content) {
@@ -499,7 +838,8 @@ class ServerArchivist {
   calculateHighlightComponents(metrics) {
     const reactionThreshold = Math.max(1, this.getReactionThreshold());
     const sentimentComponent = Math.max(0, metrics.sentiment / 5) * 0.3;
-    const reactionComponent = Math.min(1, metrics.reactions / reactionThreshold) * 0.3;
+    const reactionComponent =
+      Math.min(1, metrics.reactions / reactionThreshold) * 0.3;
     const keywordComponent = Math.min(1, metrics.keywords / 3) * 0.2;
     const lengthComponent =
       Math.min(1, Math.max(0, (metrics.contentLength - 10) / 100)) * 0.1;
@@ -530,7 +870,12 @@ class ServerArchivist {
   }
 
   createMessageContext(message) {
-    if (!message?.id || !message?.author?.id || message.author.bot) {
+    if (
+      !message?.id ||
+      !message?.author?.id ||
+      message.author.bot ||
+      !message?.channel?.id
+    ) {
       return null;
     }
 
@@ -542,10 +887,10 @@ class ServerArchivist {
     return {
       messageId: message.id,
       authorId: message.author.id,
+      guildId: getGuildId(message),
       content,
-      channelId: message.channel?.id || null,
+      channelId: message.channel.id,
       channelType: String(message.channel?.type || "unknown"),
-      reactionCount: this.getReactionCount(message),
       replyCount: Number(message.thread?.messageCount || 0),
     };
   }
@@ -605,7 +950,10 @@ class ServerArchivist {
   }
 
   setAutoHighlightPosting({ enabled, channelId }) {
-    this.setSetting("auto_highlight_posting_enabled", enabled ? "true" : "false");
+    this.setSetting(
+      "auto_highlight_posting_enabled",
+      enabled ? "true" : "false",
+    );
     if (channelId) {
       this.setSetting("auto_highlight_posting_channel_id", channelId);
     }
@@ -645,8 +993,9 @@ class ServerArchivist {
           Math.round(
             this.getNumberSetting(
               "motd_post_hour",
-              Number.parseInt(process.env.MOTD_POST_HOUR, 10) ||
-                DEFAULT_MOTD_POST_HOUR,
+              Number.isFinite(Number.parseInt(process.env.MOTD_POST_HOUR, 10))
+                ? Number.parseInt(process.env.MOTD_POST_HOUR, 10)
+                : DEFAULT_MOTD_POST_HOUR,
             ),
           ),
         ),
@@ -711,13 +1060,16 @@ class ServerArchivist {
   }
 
   createStoredHighlightSummary(highlight) {
-    const { score } = this.calculateHighlightScore({
-      sentiment: highlight.sentiment_score,
-      reactions: highlight.reaction_count,
-      replies: 0,
-      keywords: 0,
-      contentLength: String(highlight.anonymized_content || "").length,
-    });
+    const storedScore = Number(highlight.highlight_score);
+    const score = Number.isFinite(storedScore)
+      ? storedScore
+      : this.calculateHighlightScore({
+          sentiment: highlight.sentiment_score,
+          reactions: highlight.reaction_count,
+          replies: highlight.reply_count || 0,
+          keywords: highlight.keyword_count || 0,
+          contentLength: String(highlight.anonymized_content || "").length,
+        }).score;
 
     return {
       ...highlight,
@@ -725,11 +1077,16 @@ class ServerArchivist {
     };
   }
 
-  getMomentOfDayCandidate(now = new Date()) {
+  getMomentOfDayCandidate(now = new Date(), sourceChannelId = null) {
+    const scopedChannelId = String(sourceChannelId || "").trim();
+    if (!scopedChannelId) {
+      return null;
+    }
+
     const startDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const config = this.getMomentOfDayConfig();
     const candidates = this.statements.fetchDailyMomentCandidates
-      .all(startDate.toISOString(), 50)
+      .all(this.hashUserId(scopedChannelId), startDate.toISOString(), 50)
       .map((highlight) => this.createStoredHighlightSummary(highlight))
       .filter(
         (highlight) =>
@@ -750,7 +1107,9 @@ class ServerArchivist {
   }
 
   getIsoWeekKey(date = new Date()) {
-    const value = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const value = new Date(
+      Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()),
+    );
     const day = value.getUTCDay() || 7;
     value.setUTCDate(value.getUTCDate() + 4 - day);
     const yearStart = new Date(Date.UTC(value.getUTCFullYear(), 0, 1));
@@ -810,7 +1169,8 @@ class ServerArchivist {
       return false;
     }
 
-    const includeCount = this.statements.countChannelRulesByMode.get("include").count;
+    const includeCount =
+      this.statements.countChannelRulesByMode.get("include").count;
     if (includeCount === 0) {
       return true;
     }
@@ -824,6 +1184,16 @@ class ServerArchivist {
 
     if (!context) {
       return this.createEmptyAnalysis({ reason: "message-not-processable" });
+    }
+
+    if (context.guildId !== this.allowedGuildId) {
+      return this.createEmptyAnalysis({
+        reason: "guild-not-allowed",
+        monitored: false,
+        channelType: context.channelType,
+        channelId: context.channelId,
+        contentLength: context.content.length,
+      });
     }
 
     if (!this.shouldMonitorChannel(context.channelId)) {
@@ -848,11 +1218,12 @@ class ServerArchivist {
       }
     }
 
+    const reactionCount = await this.getReactionCount(message);
     const sentimentScore = this.sentiment.analyze(context.content).score;
     const keywords = this.detectKeywords(context.content);
     const { score, contributions } = this.calculateHighlightScore({
       sentiment: sentimentScore,
-      reactions: context.reactionCount,
+      reactions: reactionCount,
       replies: context.replyCount,
       keywords: keywords.length,
       contentLength: context.content.length,
@@ -865,7 +1236,8 @@ class ServerArchivist {
       becameHighlight: false,
       lostHighlight: false,
       sentimentScore,
-      reactionCount: context.reactionCount,
+      reactionCount,
+      replyCount: context.replyCount,
       keywords,
       channelType: context.channelType,
       channelId: context.channelId,
@@ -877,7 +1249,7 @@ class ServerArchivist {
       contributions,
       hashedAuthorId: this.hashUserId(context.authorId),
       hashedMessageId: this.hashUserId(context.messageId),
-      anonymizedContent: this.anonymizeContent(context.content),
+      anonymizedContent: this.redactContent(context.content),
     };
   }
 
@@ -907,7 +1279,13 @@ class ServerArchivist {
   async recordMessage(message, options = {}) {
     const analysis = await this.evaluateMessage(message, options);
     if (analysis.reason !== "processed") {
-      return analysis;
+      const removal = this.removeStoredMessage(message?.id);
+      return {
+        ...analysis,
+        wasHighlight: removal.removedHighlight,
+        becameHighlight: false,
+        lostHighlight: removal.removedHighlight,
+      };
     }
 
     return this.persistAnalysisTransaction(analysis);
@@ -922,7 +1300,11 @@ class ServerArchivist {
   }
 
   applyPointMutation(hashedUserId, pointDelta, highlightDelta) {
-    this.statements.mutateUserPoints.run(hashedUserId, pointDelta, highlightDelta);
+    this.statements.mutateUserPoints.run(
+      hashedUserId,
+      pointDelta,
+      highlightDelta,
+    );
   }
 
   addUserPoints(userId, points, options = {}) {
@@ -950,7 +1332,7 @@ class ServerArchivist {
   }
 
   getHealthSnapshot(runtimeHealth = null) {
-    let databaseReachable = false;
+    let databaseReachable;
     try {
       databaseReachable = this.statements.healthCheck.get().ok === 1;
     } catch {
@@ -973,18 +1355,23 @@ class ServerArchivist {
   getPrivacySummary() {
     return {
       stored: [
-        "Hashed author identifiers",
+        "Pseudonymous author identifiers",
         "Hashed message identifiers",
-        "Anonymized content excerpts",
+        "Short, automatically redacted content excerpts",
         "Sentiment score and reaction count",
+        "Highlight points and consent state",
         "Highlight state and creation timestamp",
+        "Pseudonymous source channel identifiers",
+        "Raw channel IDs used for server configuration",
       ],
-      anonymized: [
+      redacted: [
         "User mentions are replaced with placeholders",
         "Channel mentions are replaced with placeholders",
         "Role mentions are replaced with placeholders",
-        "Links, emails, dates, and times are redacted",
+        "Links, emails, dates, times, phone-like values, IPs, and custom emoji IDs are redacted",
         "Raw Discord user IDs and server IDs are not stored in highlight rows",
+        "Raw source channel IDs are not stored in highlight rows",
+        "Free-form names and addresses may remain and are not guaranteed to be anonymous",
       ],
     };
   }
@@ -1003,16 +1390,57 @@ class ServerArchivist {
   purgeExpiredHighlights() {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - this.dataRetentionDays);
-    this.statements.deleteExpiredHighlights.run(cutoff.toISOString());
+    return this.purgeExpiredHighlightsTransaction(cutoff.toISOString());
   }
 
-  buildReport({ period, days, limit }) {
+  clearAllData() {
+    this.clearAllDataTransaction();
+  }
+
+  createBackupPayload() {
+    return {
+      highlights: this.db
+        .prepare(
+          "SELECT * FROM highlights_anonymized WHERE is_highlight = TRUE ORDER BY created_at DESC",
+        )
+        .all(),
+      userPoints: this.db
+        .prepare("SELECT * FROM user_points ORDER BY last_updated DESC")
+        .all(),
+      privacyConsents: this.db
+        .prepare("SELECT * FROM user_privacy ORDER BY updated_at DESC")
+        .all(),
+      applicationSettings: this.db
+        .prepare("SELECT * FROM app_settings ORDER BY key ASC")
+        .all(),
+      channelSettings: this.db
+        .prepare("SELECT * FROM channel_settings ORDER BY channel_id ASC")
+        .all(),
+      settings: {
+        allowedGuildId: this.allowedGuildId,
+        reactionThreshold: this.getReactionThreshold(),
+        monitoring: this.getMonitoringSummary(),
+        weeklyRecap: this.getWeeklyRecapConfig(),
+        momentOfDay: this.getMomentOfDayConfig(),
+        autoHighlightPosting: this.getAutoHighlightPostingConfig(),
+        dataRetentionDays: this.dataRetentionDays,
+      },
+      timestamp: new Date().toISOString(),
+      version: 6,
+    };
+  }
+
+  buildReport({ period, days, limit, sourceChannelId }) {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
-    const highlights = this.statements.fetchHighlightsSince.all(
-      startDate.toISOString(),
-      limit,
-    );
+    const scopedChannelId = String(sourceChannelId || "").trim();
+    const highlights = scopedChannelId
+      ? this.statements.fetchHighlightsSince.all(
+          this.hashUserId(scopedChannelId),
+          startDate.toISOString(),
+          limit,
+        )
+      : [];
 
     return {
       period,
@@ -1023,12 +1451,22 @@ class ServerArchivist {
     };
   }
 
-  generateWeeklyReport(limit = DEFAULT_WEEKLY_LIMIT) {
-    return this.buildReport({ period: "weekly", days: 7, limit });
+  generateWeeklyReport(limit = DEFAULT_WEEKLY_LIMIT, sourceChannelId = null) {
+    return this.buildReport({
+      period: "weekly",
+      days: 7,
+      limit,
+      sourceChannelId,
+    });
   }
 
-  generateMonthlyReport() {
-    return this.buildReport({ period: "monthly", days: 30, limit: 20 });
+  generateMonthlyReport(sourceChannelId = null) {
+    return this.buildReport({
+      period: "monthly",
+      days: 30,
+      limit: 20,
+      sourceChannelId,
+    });
   }
 
   exportToMarkdown(report) {

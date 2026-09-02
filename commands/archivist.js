@@ -8,12 +8,15 @@ const {
   ButtonBuilder,
   ButtonStyle,
 } = require("discord.js");
-const fs = require("fs").promises;
-const path = require("path");
-const os = require("os");
+const crypto = require("crypto");
 
 const logger = require("../logger.js");
-const { createArchivistEmbed, EMBED_COLORS, trimText } = require("../embed-style.js");
+const {
+  createArchivistEmbed,
+  EMBED_COLORS,
+  trimText,
+} = require("../embed-style.js");
+const { isAllowedGuildId } = require("../guild-scope.js");
 
 const ADMIN_CHANNEL_TYPES = [
   ChannelType.GuildText,
@@ -23,9 +26,52 @@ const ADMIN_CHANNEL_TYPES = [
 ];
 const MOTD_CONTROL_PREFIX = "archivist:motd";
 const WEEKLY_CONTROL_PREFIX = "archivist:weekly";
+const CLEAR_CONTROL_PREFIX = "archivist:clear";
+const CLEAR_CONFIRMATION_TTL_MS = 5 * 60 * 1000;
+const pendingClearConfirmations = new Map();
 
 function isAdministrator(interaction) {
   return interaction.memberPermissions?.has(PermissionFlagsBits.Administrator);
+}
+
+function isConfiguredGuild(interaction) {
+  const allowedGuildId = interaction.client.archivist.allowedGuildId;
+  if (
+    interaction.client.allowedGuildId &&
+    interaction.client.allowedGuildId !== allowedGuildId
+  ) {
+    return false;
+  }
+  return isAllowedGuildId(interaction.guildId, allowedGuildId);
+}
+
+function pruneExpiredClearConfirmations(now = Date.now()) {
+  for (const [token, confirmation] of pendingClearConfirmations) {
+    if (confirmation.expiresAt <= now) {
+      pendingClearConfirmations.delete(token);
+    }
+  }
+}
+
+function buildClearConfirmationRow(userId, guildId) {
+  pruneExpiredClearConfirmations();
+  const token = crypto.randomBytes(12).toString("hex");
+  pendingClearConfirmations.set(token, {
+    userId,
+    guildId,
+    expiresAt: Date.now() + CLEAR_CONFIRMATION_TTL_MS,
+  });
+
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`${CLEAR_CONTROL_PREFIX}:confirm:${userId}:${token}`)
+      .setLabel("Delete all Archivist data")
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId(`${CLEAR_CONTROL_PREFIX}:cancel:${userId}:${token}`)
+      .setLabel("Cancel")
+      .setStyle(ButtonStyle.Secondary),
+  );
 }
 
 async function requireAdministrator(interaction, message) {
@@ -146,7 +192,8 @@ function buildWeeklyControls(userId, config) {
 
 function buildWeeklyStatusEmbed(archivist, options = {}) {
   const config = archivist.getWeeklyRecapConfig();
-  const nextRun = config.enabled && config.channelId ? getNextWeeklyRun() : null;
+  const nextRun =
+    config.enabled && config.channelId ? getNextWeeklyRun() : null;
   const description = config.enabled
     ? "Archivist can publish a weekly look back at the strongest saved community moments."
     : "Weekly recap is currently off. Enable it when you want Archivist to post a weekly highlights digest.";
@@ -238,7 +285,10 @@ async function handleWeeklyAction(interaction, action, options = {}) {
       return true;
     }
 
-    archivist.setWeeklyRecapConfig({ enabled: true, channelId: targetChannelId });
+    archivist.setWeeklyRecapConfig({
+      enabled: true,
+      channelId: targetChannelId,
+    });
     await replyWithWeeklyStatus(interaction, {
       notice: `Weekly recap is enabled for <#${targetChannelId}>.`,
     });
@@ -271,7 +321,11 @@ async function handleWeeklyAction(interaction, action, options = {}) {
       });
     }
 
-    const posted = await runtime.dispatchWeeklyRecap(interaction.client, "weekly-command");
+    const posted = await runtime.dispatchWeeklyRecap(
+      interaction.client,
+      "weekly-command",
+      { force: true },
+    );
     await replyWithWeeklyStatus(interaction, {
       notice: posted
         ? "Weekly recap was posted successfully."
@@ -387,9 +441,14 @@ async function handleMomentOfDayAction(interaction, action, options = {}) {
     const targetChannelId = options.channelId || currentConfig.channelId;
     const targetHour = options.hour ?? currentConfig.postHourUtc;
 
-    if (currentConfig.enabled && targetChannelId === currentConfig.channelId && targetHour === currentConfig.postHourUtc) {
+    if (
+      currentConfig.enabled &&
+      targetChannelId === currentConfig.channelId &&
+      targetHour === currentConfig.postHourUtc
+    ) {
       await replyWithMomentOfDayStatus(interaction, {
-        notice: "Moment of the Day is already enabled with the current settings.",
+        notice:
+          "Moment of the Day is already enabled with the current settings.",
       });
       return true;
     }
@@ -526,7 +585,9 @@ function buildOverviewEmbed(interaction) {
       },
     )
     .setColor(EMBED_COLORS.primary)
-    .setFooter({ text: "Use /archivist inspect to explain an individual highlight decision." })
+    .setFooter({
+      text: "Use /archivist inspect to explain an individual highlight decision.",
+    })
     .setTimestamp();
 }
 
@@ -540,39 +601,38 @@ function buildHealthEmbed(interaction) {
     description:
       "Operational detail for message processing, storage, and recent runtime activity.",
     color: snapshot.databaseReachable ? "success" : "danger",
-  })
-    .addFields(
-      {
-        name: "Database",
-        value: snapshot.databaseReachable ? "Reachable" : "Not reachable",
-        inline: true,
-      },
-      {
-        name: "Stored Highlights",
-        value: String(snapshot.highlightCount),
-        inline: true,
-      },
-      {
-        name: "Queue Depth",
-        value: String(runtimeHealth.queueDepth),
-        inline: true,
-      },
-      {
-        name: "Last Processed Event",
-        value: runtimeHealth.lastProcessedEvent,
-        inline: true,
-      },
-      {
-        name: "Processed Events",
-        value: String(runtimeHealth.processedEvents),
-        inline: true,
-      },
-      {
-        name: "Recent Error Count",
-        value: String(runtimeHealth.recentErrorCount),
-        inline: true,
-      },
-    );
+  }).addFields(
+    {
+      name: "Database",
+      value: snapshot.databaseReachable ? "Reachable" : "Not reachable",
+      inline: true,
+    },
+    {
+      name: "Stored Highlights",
+      value: String(snapshot.highlightCount),
+      inline: true,
+    },
+    {
+      name: "Queue Depth",
+      value: String(runtimeHealth.queueDepth),
+      inline: true,
+    },
+    {
+      name: "Last Processed Event",
+      value: runtimeHealth.lastProcessedEvent,
+      inline: true,
+    },
+    {
+      name: "Processed Events",
+      value: String(runtimeHealth.processedEvents),
+      inline: true,
+    },
+    {
+      name: "Recent Error Count",
+      value: String(runtimeHealth.recentErrorCount),
+      inline: true,
+    },
+  );
 }
 
 function buildPrivacyEmbed(archivist) {
@@ -582,27 +642,29 @@ function buildPrivacyEmbed(archivist) {
     description:
       "Archivist stores the minimum data needed to preserve community highlights without keeping raw message history.",
     color: "violet",
-  })
-    .addFields(
-      {
-        name: "Stored Data",
-        value: privacy.stored.map((entry) => `- ${entry}`).join("\n"),
-        inline: false,
-      },
-      {
-        name: "Anonymized or Redacted",
-        value: privacy.anonymized.map((entry) => `- ${entry}`).join("\n"),
-        inline: false,
-      },
-    );
+  }).addFields(
+    {
+      name: "Stored Data",
+      value: privacy.stored.map((entry) => `- ${entry}`).join("\n"),
+      inline: false,
+    },
+    {
+      name: "Automatically Redacted",
+      value: privacy.redacted.map((entry) => `- ${entry}`).join("\n"),
+      inline: false,
+    },
+  );
 }
 
 async function resolveInspectableMessage(interaction) {
   const messageId = interaction.options.getString("message_id", true);
-  const targetChannel = interaction.options.getChannel("channel") || interaction.channel;
+  const targetChannel =
+    interaction.options.getChannel("channel") || interaction.channel;
 
   if (!targetChannel?.messages?.fetch) {
-    throw new Error("The selected channel does not support message inspection.");
+    throw new Error(
+      "The selected channel does not support message inspection.",
+    );
   }
 
   return targetChannel.messages.fetch(messageId);
@@ -611,10 +673,14 @@ async function resolveInspectableMessage(interaction) {
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("archivist")
-    .setDescription("Manage highlights, recap delivery, privacy, and Archivist health")
+    .setDescription(
+      "Manage highlights, recap delivery, privacy, and Archivist health",
+    )
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addSubcommand((subcommand) =>
-      subcommand.setName("overview").setDescription("Show the archivist overview"),
+      subcommand
+        .setName("overview")
+        .setDescription("Show the archivist overview"),
     )
     .addSubcommand((subcommand) =>
       subcommand
@@ -639,7 +705,9 @@ module.exports = {
         .addIntegerOption((option) =>
           option
             .setName("value")
-            .setDescription("Minimum reactions that count as full reaction weight")
+            .setDescription(
+              "Minimum reactions that count as full reaction weight",
+            )
             .setRequired(true)
             .setMinValue(1),
         ),
@@ -763,7 +831,9 @@ module.exports = {
         .addIntegerOption((option) =>
           option
             .setName("hour")
-            .setDescription("UTC hour when Archivist should post the daily moment")
+            .setDescription(
+              "UTC hour when Archivist should post the daily moment",
+            )
             .setRequired(false)
             .setMinValue(0)
             .setMaxValue(23),
@@ -772,23 +842,33 @@ module.exports = {
     .addSubcommand((subcommand) =>
       subcommand
         .setName("backup")
-        .setDescription("Create a backup of stored highlights"),
+        .setDescription("Create a backup of all stored Archivist data"),
     )
     .addSubcommand((subcommand) =>
       subcommand
         .setName("clear")
-        .setDescription("Delete all stored highlight data"),
+        .setDescription("Delete all stored Archivist data and settings"),
     ),
 
   async execute(interaction) {
     const archivist = interaction.client.archivist;
-    const runtime = interaction.client.runtime;
     const subcommand = interaction.options.getSubcommand();
+
+    if (!isConfiguredGuild(interaction)) {
+      await interaction.reply({
+        content: "Archivist is configured for a different Discord server.",
+        ephemeral: true,
+      });
+      return;
+    }
 
     try {
       switch (subcommand) {
         case "overview": {
-          await interaction.reply({ embeds: [buildOverviewEmbed(interaction)], ephemeral: true });
+          await interaction.reply({
+            embeds: [buildOverviewEmbed(interaction)],
+            ephemeral: true,
+          });
           return;
         }
 
@@ -822,27 +902,28 @@ module.exports = {
         }
 
         case "points": {
-          const targetUser = interaction.options.getUser("user") || interaction.user;
+          const targetUser =
+            interaction.options.getUser("user") || interaction.user;
           const userPoints = archivist.getUserPoints(targetUser.id);
 
           const embed = createArchivistEmbed({
             title: "Point Summary",
-            description: "A quick view of current Archivist contribution points.",
-          })
-            .addFields(
-              { name: "User", value: targetUser.username, inline: true },
-              { name: "Points", value: `${userPoints.points}`, inline: true },
-              {
-                name: "Highlights Created",
-                value: `${userPoints.highlights_created}`,
-                inline: true,
-              },
-              {
-                name: "Votes Cast",
-                value: `${userPoints.votes_cast}`,
-                inline: true,
-              },
-            );
+            description:
+              "A quick view of current Archivist contribution points.",
+          }).addFields(
+            { name: "User", value: targetUser.username, inline: true },
+            { name: "Points", value: `${userPoints.points}`, inline: true },
+            {
+              name: "Highlights Created",
+              value: `${userPoints.highlights_created}`,
+              inline: true,
+            },
+            {
+              name: "Votes Cast",
+              value: `${userPoints.votes_cast}`,
+              inline: true,
+            },
+          );
 
           await interaction.reply({ embeds: [embed], ephemeral: true });
           return;
@@ -891,7 +972,8 @@ module.exports = {
 
           if (enabled && !targetChannelId) {
             await interaction.reply({
-              content: "Choose a channel before enabling automatic highlight posting.",
+              content:
+                "Choose a channel before enabling automatic highlight posting.",
               ephemeral: true,
             });
             return;
@@ -907,7 +989,7 @@ module.exports = {
               createArchivistEmbed({
                 title: "Automatic Highlight Posting Updated",
                 description: enabled
-                  ? `New highlights will now be posted automatically in <#${targetChannelId}>.`
+                  ? `New highlights originating in <#${targetChannelId}> will now be posted back into that channel.`
                   : "Automatic highlight posting is now disabled.",
                 color: enabled ? "success" : "danger",
               }),
@@ -943,12 +1025,11 @@ module.exports = {
                 ? `${channel} now follows the default monitoring policy again.`
                 : `${channel} is now marked as ${action} for Archivist monitoring.`,
             color: "success",
-          })
-            .addFields({
-              name: "Current Rules",
-              value: formatChannelRules(archivist.getMonitoringSummary()),
-              inline: false,
-            });
+          }).addFields({
+            name: "Current Rules",
+            value: formatChannelRules(archivist.getMonitoringSummary()),
+            inline: false,
+          });
 
           await interaction.reply({ embeds: [embed], ephemeral: true });
           return;
@@ -1000,15 +1081,15 @@ module.exports = {
               },
               {
                 name: "Decision",
-                value: inspection.isHighlight ? "Saved as a highlight" : "Below highlight threshold",
+                value: inspection.isHighlight
+                  ? "Saved as a highlight"
+                  : "Below highlight threshold",
                 inline: true,
               },
               {
                 name: "Stored",
                 value: inspection.storedHighlight
-                  ? inspection.storedHighlight.isHighlight
-                    ? "Stored as highlight"
-                    : "Stored but below highlight threshold"
+                  ? "Stored as highlight"
                   : "Not stored",
                 inline: true,
               },
@@ -1039,7 +1120,9 @@ module.exports = {
               },
               {
                 name: "Monitoring",
-                value: inspection.monitored ? "Included in monitoring" : "Not monitored",
+                value: inspection.monitored
+                  ? "Included in monitoring"
+                  : "Not monitored",
                 inline: true,
               },
             )
@@ -1119,25 +1202,9 @@ module.exports = {
 
           await interaction.deferReply({ ephemeral: true });
 
-          const payload = {
-            highlights: archivist.db
-              .prepare("SELECT * FROM highlights_anonymized ORDER BY created_at DESC")
-              .all(),
-            settings: {
-              reactionThreshold: archivist.getReactionThreshold(),
-              monitoring: archivist.getMonitoringSummary(),
-              weeklyRecap: archivist.getWeeklyRecapConfig(),
-              autoHighlightPosting: archivist.getAutoHighlightPostingConfig(),
-            },
-            timestamp: new Date().toISOString(),
-            version: 3,
-          };
-
-          const filePath = path.join(
-            os.tmpdir(),
-            `archivist-backup-${Date.now()}.json`,
-          );
-          await fs.writeFile(filePath, JSON.stringify(payload, null, 2), "utf8");
+          const payload = archivist.createBackupPayload();
+          const timestamp = Date.now();
+          const backup = Buffer.from(JSON.stringify(payload, null, 2), "utf8");
 
           try {
             const dm = await interaction.user.createDM();
@@ -1145,20 +1212,29 @@ module.exports = {
               embeds: [
                 new EmbedBuilder()
                   .setTitle("Backup Ready")
-                  .setDescription("Your archivist backup is attached.")
+                  .setDescription(
+                    "Your complete Archivist data backup is attached.",
+                  )
                   .setColor(0x16a34a)
                   .setTimestamp(),
               ],
-              files: [new AttachmentBuilder(filePath)],
+              files: [
+                new AttachmentBuilder(backup, {
+                  name: `archivist-backup-${timestamp}.json`,
+                }),
+              ],
             });
-            await interaction.editReply("Backup complete. The archive was sent by direct message.");
+            await interaction.editReply(
+              "Backup complete. The archive was sent by direct message.",
+            );
           } catch (error) {
-            logger.error("Failed to deliver the backup by direct message.", error);
+            logger.error(
+              "Failed to deliver the backup by direct message.",
+              error,
+            );
             await interaction.editReply(
               "The backup was created, but it could not be delivered by direct message.",
             );
-          } finally {
-            await fs.unlink(filePath).catch(() => {});
           }
           return;
         }
@@ -1173,19 +1249,23 @@ module.exports = {
             return;
           }
 
-          archivist.db.exec("DELETE FROM highlights_anonymized");
-          archivist.db.exec("DELETE FROM user_points");
-          archivist.db.exec("DELETE FROM user_privacy");
-          archivist.db.exec("DELETE FROM app_settings");
-          archivist.db.exec("DELETE FROM channel_settings");
-
           const embed = createArchivistEmbed({
-            title: "Data Cleared",
-            description: "All Archivist data and configuration have been deleted.",
-            color: "danger",
+            title: "Confirm Complete Data Deletion",
+            description:
+              "This permanently deletes every stored highlight, consent record, point total, channel rule, and delivery setting for this Archivist instance. Consider running `/archivist backup` first.",
+            color: "warm",
           });
 
-          await interaction.reply({ embeds: [embed], ephemeral: true });
+          await interaction.reply({
+            embeds: [embed],
+            components: [
+              buildClearConfirmationRow(
+                interaction.user.id,
+                interaction.guildId,
+              ),
+            ],
+            ephemeral: true,
+          });
           return;
         }
 
@@ -1216,12 +1296,26 @@ module.exports = {
       return false;
     }
 
+    if (!isConfiguredGuild(interaction)) {
+      await interaction.reply({
+        content: "Archivist is configured for a different Discord server.",
+        ephemeral: true,
+      });
+      return true;
+    }
+
     let action;
     let ownerId;
+    let confirmationToken;
     let handler;
-    let title = "Archivist Controls";
+    let title;
 
-    if (interaction.customId.startsWith(`${MOTD_CONTROL_PREFIX}:`)) {
+    if (interaction.customId.startsWith(`${CLEAR_CONTROL_PREFIX}:`)) {
+      [action, ownerId, confirmationToken] = interaction.customId
+        .slice(`${CLEAR_CONTROL_PREFIX}:`.length)
+        .split(":");
+      title = "Archivist Data Deletion";
+    } else if (interaction.customId.startsWith(`${MOTD_CONTROL_PREFIX}:`)) {
       [action, ownerId] = interaction.customId
         .slice(`${MOTD_CONTROL_PREFIX}:`.length)
         .split(":");
@@ -1253,10 +1347,61 @@ module.exports = {
 
     if (!isAdministrator(interaction)) {
       await interaction.reply({
-        content: "Only administrators can manage Moment of the Day.",
+        content: "Only administrators can use Archivist admin controls.",
         ephemeral: true,
       });
       return true;
+    }
+
+    if (interaction.customId.startsWith(`${CLEAR_CONTROL_PREFIX}:`)) {
+      pruneExpiredClearConfirmations();
+      const confirmation = pendingClearConfirmations.get(confirmationToken);
+      if (
+        !confirmation ||
+        confirmation.userId !== interaction.user.id ||
+        confirmation.guildId !== interaction.guildId
+      ) {
+        await interaction.reply({
+          content:
+            "This deletion confirmation is invalid or expired. Run `/archivist clear` again.",
+          ephemeral: true,
+        });
+        return true;
+      }
+
+      pendingClearConfirmations.delete(confirmationToken);
+
+      if (action === "confirm") {
+        interaction.client.archivist.clearAllData();
+        await interaction.update({
+          embeds: [
+            createArchivistEmbed({
+              title: "Archivist Data Deleted",
+              description:
+                "All stored Archivist data and configuration have been deleted.",
+              color: "danger",
+            }),
+          ],
+          components: [],
+        });
+        return true;
+      }
+
+      if (action === "cancel") {
+        await interaction.update({
+          embeds: [
+            createArchivistEmbed({
+              title: "Data Deletion Cancelled",
+              description: "No Archivist data was deleted.",
+              color: "muted",
+            }),
+          ],
+          components: [],
+        });
+        return true;
+      }
+
+      return false;
     }
 
     return handler(interaction, action);
