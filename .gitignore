@@ -4,8 +4,11 @@
 # Folder with all installed packages (is regenerated with 'npm install')
 /node_modules
 
-# The database file
+# SQLite database files and data-bearing sidecars
 *.db
+*.db-wal
+*.db-shm
+*.db-journal
 
 # Log files and debug output
 *.log

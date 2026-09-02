@@ -8,29 +8,30 @@ module.exports = {
 
   async execute(interaction) {
     try {
-      const report = interaction.client.archivist.generateWeeklyReport();
+      const report = interaction.client.archivist.generateWeeklyReport(
+        undefined,
+        interaction.channelId,
+      );
       const topMoment = report.highlights[0];
       const secondMoment = report.highlights[1];
 
       const embed = createArchivistEmbed({
         title: "Archivist Weekly Recap",
-        description:
-          `A quick look back at the moments your community made worth revisiting.\n**Week:** ${report.startDate.toLocaleDateString()} - ${report.endDate.toLocaleDateString()}`,
-      })
-        .addFields(
-          {
-            name: "Community Snapshot",
-            value: `${report.totalHighlights}`,
-            inline: true,
-          },
-          {
-            name: "Top Highlight",
-            value: topMoment
-              ? trimText(topMoment.anonymized_content, 220)
-              : "No highlights were saved this week.",
-            inline: false,
-          },
-        );
+        description: `A quick look back at the moments your community made worth revisiting.\n**Week:** ${report.startDate.toLocaleDateString()} - ${report.endDate.toLocaleDateString()}`,
+      }).addFields(
+        {
+          name: "Community Snapshot",
+          value: `${report.totalHighlights}`,
+          inline: true,
+        },
+        {
+          name: "Top Highlight",
+          value: topMoment
+            ? trimText(topMoment.anonymized_content, 220)
+            : "No highlights were saved this week.",
+          inline: false,
+        },
+      );
 
       if (topMoment) {
         embed.addFields({
@@ -49,7 +50,7 @@ module.exports = {
       }
 
       await interaction.reply({ embeds: [embed] });
-    } catch (error) {
+    } catch {
       if (interaction.deferred || interaction.replied) {
         await interaction.followUp({
           content: "Failed to build the weekly report.",

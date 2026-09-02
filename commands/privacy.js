@@ -32,7 +32,9 @@ module.exports = {
         .addStringOption((option) =>
           option
             .setName("action")
-            .setDescription("Choose whether Archivist should process your messages")
+            .setDescription(
+              "Choose whether Archivist should process your messages",
+            )
             .setRequired(true)
             .addChoices(
               { name: "Opt In", value: "opt-in" },
@@ -110,7 +112,10 @@ module.exports = {
   },
 
   async handleComponent(interaction) {
-    if (!interaction.isButton() || !interaction.customId.startsWith(`${DELETE_CONFIRM_PREFIX}:`)) {
+    if (
+      !interaction.isButton() ||
+      !interaction.customId.startsWith(`${DELETE_CONFIRM_PREFIX}:`)
+    ) {
       return false;
     }
 

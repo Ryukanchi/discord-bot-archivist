@@ -18,25 +18,26 @@ module.exports = {
 
     const embed = createArchivistEmbed({
       title: "Archivist Latency",
-      description: "A quick health check for Archivist response time and gateway latency.",
+      description:
+        "A quick health check for Archivist response time and gateway latency.",
       color: "success",
     }).addFields(
-        {
-          name: "Roundtrip Latency",
-          value: `${roundtripLatency}ms`,
-          inline: true,
-        },
-        {
-          name: "Websocket Latency",
-          value: `${websocketLatency}ms`,
-          inline: true,
-        },
-        {
-          name: "Status",
-          value: "Operational",
-          inline: true,
-        },
-      );
+      {
+        name: "Roundtrip Latency",
+        value: `${roundtripLatency}ms`,
+        inline: true,
+      },
+      {
+        name: "Websocket Latency",
+        value: `${websocketLatency}ms`,
+        inline: true,
+      },
+      {
+        name: "Status",
+        value: "Operational",
+        inline: true,
+      },
+    );
 
     await interaction.editReply({ content: "", embeds: [embed] });
   },

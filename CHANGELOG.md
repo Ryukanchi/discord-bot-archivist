@@ -2,7 +2,28 @@
 
 ## Unreleased
 
+### Security and privacy
+
+- Bound each SQLite database to one explicitly allowed Discord server and fail closed on mismatches.
+- Restricted commands, message processing, deletion events, and outgoing posts to the configured server.
+- Rejected known foreign partial Discord objects before requesting hydration.
+- Added explicit legacy-database ownership attestation for safe upgrades.
+- Added a second administrator confirmation before complete data deletion and made clearing atomic.
+- Expanded structured identifier redaction and clarified that stored excerpts are pseudonymous, not guaranteed anonymous.
+- Updated runtime dependencies to patched versions.
+
+### Reliability
+
+- Fixed legacy schema migration ordering so columns are added before dependent indexes.
+- Persisted the original highlight score and scoring metadata for Moment of the Day selection.
+- Limited the legacy score backfill to its recorded migration so legitimate zero scores survive restarts.
+- Made retention cleanup adjust highlight points atomically.
+- Expanded administrator backups to include every dataset removed by complete deletion.
+- Preserved valid zero-valued configuration and empty keyword lists.
+- Added regression coverage for guild isolation, database ownership, migration, retention, redaction, score preservation, and clear confirmation.
+
 ### Polish
+
 - Added a more structured `/help` guide centered on Archivist's main workflows and primary entrypoints.
 - Reduced command-surface duplication by removing the redundant `/archivist help` subcommand.
 - Reframed command and embed wording around Archivist as a privacy-first community highlight and memory bot.
@@ -15,6 +36,7 @@
 - Updated `/ping`, `/hello`, and `/info` descriptions and copy so even utility commands sound like Archivist.
 
 ### Added
+
 - Added lightweight application settings and channel monitoring rules in SQLite for admin-managed configuration.
 - Added a clearer `/archivist` admin surface with overview, health, inspect, privacy, threshold, channel, weekly recap, and auto-post controls.
 - Added runtime health tracking for last processed event, processed event count, queue depth, and recent error count.
@@ -24,6 +46,7 @@
 - Added `/archivist motd` so administrators can review, enable, disable, and manually post Moment of the Day from Discord.
 
 ### Changed
+
 - Repositioned the bot as a privacy-first community highlight and memory bot instead of a generic archive utility.
 - Updated highlight scoring to use the configured reaction threshold consistently in scoring output and inspection.
 - Expanded message lifecycle handling to include message updates alongside create, reaction, and delete flows.
@@ -32,6 +55,7 @@
 - Expanded `/archivist overview` and `/help` so Moment of the Day is visible as a first-class product feature.
 
 ### Fixed
+
 - Prevented duplicate point inflation by keeping highlight persistence idempotent per message.
 - Prevented excluded or non-monitored channels from being analyzed or stored as highlights.
 - Preserved correct promote or demote behavior when edited messages cross the highlight threshold.

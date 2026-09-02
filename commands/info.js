@@ -19,32 +19,32 @@ module.exports = {
       description:
         "A quick operational snapshot of Archivist, the current server, and the running environment.",
     }).addFields(
-        { name: "Bot", value: client.user.username, inline: true },
-        { name: "Guild", value: interaction.guild.name, inline: true },
-        { name: "User", value: interaction.user.username, inline: true },
-        { name: "Ping", value: `${client.ws.ping}ms`, inline: true },
-        {
-          name: "Uptime",
-          value: `${days}d ${hours}h ${minutes}m ${seconds}s`,
-          inline: true,
-        },
-        {
-          name: "Connected Guilds",
-          value: `${client.guilds.cache.size}`,
-          inline: true,
-        },
-        {
-          name: "discord.js",
-          value: discordVersion,
-          inline: true,
-        },
-        { name: "Node.js", value: process.version, inline: true },
-        {
-          name: "Heap Usage",
-          value: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
-          inline: true,
-        },
-      );
+      { name: "Bot", value: client.user.username, inline: true },
+      { name: "Guild", value: interaction.guild.name, inline: true },
+      { name: "User", value: interaction.user.username, inline: true },
+      { name: "Ping", value: `${client.ws.ping}ms`, inline: true },
+      {
+        name: "Uptime",
+        value: `${days}d ${hours}h ${minutes}m ${seconds}s`,
+        inline: true,
+      },
+      {
+        name: "Connected Guilds",
+        value: `${client.guilds.cache.size}`,
+        inline: true,
+      },
+      {
+        name: "discord.js",
+        value: discordVersion,
+        inline: true,
+      },
+      { name: "Node.js", value: process.version, inline: true },
+      {
+        name: "Heap Usage",
+        value: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
+        inline: true,
+      },
+    );
 
     await interaction.reply({ embeds: [embed] });
   },
